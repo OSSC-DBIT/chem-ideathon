@@ -204,4 +204,4 @@ Contributions are welcome, and first pull requests especially so.
 ## License
 
 [MIT](LICENSE). The event poster, the DBIT name and logos, and the OSSC logo are not covered by the
-license and belong to their owners.
+license and belong to their owners; see [NOTICE.md](NOTICE.md).
