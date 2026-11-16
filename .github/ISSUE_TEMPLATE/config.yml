@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/OSSC-DBIT/chem-ideathon/security/advisories/new
+    about: Please do not open a public issue for security problems.
+  - name: Ask the OSSC community
+    url: https://webuildnow.in
+    about: Club channels and contacts.

@@ -45,6 +45,8 @@ Built and maintained by [OSSC (OpenSource Students Club), DBIT](https://webuildn
 ## Run with Docker
 
 ```sh
+git clone https://github.com/OSSC-DBIT/chem-ideathon.git
+cd chem-ideathon
 cp .env.example .env      # set ADMIN_PASSWORD (12+ characters)
 docker compose up -d --build
 ```
@@ -189,3 +191,17 @@ public/                 Frontend (index, admin, privacy, css, js, fonts, images)
 nginx/default.conf      Reverse proxy
 scripts/smoke-test.sh   End to end API test
 ```
+
+## Contributing
+
+Contributions are welcome, and first pull requests especially so.
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): set up, tests, and the project rules
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): how we treat each other
+- [SECURITY.md](SECURITY.md): how to report a security problem privately
+- [AGENTS.md](AGENTS.md): orientation for AI coding agents, and a quick map of the code
+
+## License
+
+[MIT](LICENSE). The event poster, the DBIT name and logos, and the OSSC logo are not covered by the
+license and belong to their owners.

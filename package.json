@@ -1,7 +1,16 @@
 {
-  "name": "ideathon-26-registration",
+  "name": "chem-ideathon",
   "version": "2.0.0",
   "description": "Registration platform for Ideathon '26, Department of Chemistry, Don Bosco Institute of Technology, Bengaluru. Built and maintained by OSSC.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OSSC-DBIT/chem-ideathon.git"
+  },
+  "homepage": "https://github.com/OSSC-DBIT/chem-ideathon#readme",
+  "bugs": {
+    "url": "https://github.com/OSSC-DBIT/chem-ideathon/issues"
+  },
   "private": true,
   "type": "module",
   "main": "server.js",
