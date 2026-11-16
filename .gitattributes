@@ -1,0 +1,6 @@
+# Keep Unix line endings everywhere, so scripts and configs work when cloned on any system.
+* text=auto eol=lf
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.woff2 binary
