@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Admin | Ideathon '26</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <main class="wrap admin-wrap">
+    <noscript><div class="alert error center">The admin panel needs JavaScript.</div></noscript>
+
+    <form class="card login-card" id="login" hidden novalidate>
+      <a class="brand" href="/">IDEATHON <span>'26</span></a>
+      <h1>Admin sign in</h1>
+      <p class="muted small">For event organisers only.</p>
+      <div class="alert error" id="login-error" role="alert" hidden></div>
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" type="text" autocomplete="username" autocapitalize="none" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" required>
+      </div>
+      <div class="field"><button class="btn block" type="submit">Sign in</button></div>
+    </form>
+
+    <div id="panel" hidden>
+      <header class="admin-head">
+        <a class="brand" href="/" target="_blank" rel="noopener">IDEATHON <span>'26</span> ADMIN</a>
+        <div class="who">
+          <span class="badge" id="reg-state"></span>
+          <span id="who"></span>
+          <button type="button" class="btn sm white" id="logout">Sign out</button>
+        </div>
+      </header>
+
+      <div class="tabs" role="tablist" id="tabs">
+        <button role="tab" data-tab="overview">Overview</button>
+        <button role="tab" data-tab="registrations">Registrations<span class="count" id="pending-count" hidden></span></button>
+        <button role="tab" data-tab="reconcile">Bank statement</button>
+        <button role="tab" data-tab="events">Events</button>
+        <button role="tab" data-tab="students">Student list</button>
+        <button role="tab" data-tab="settings">Settings</button>
+        <button role="tab" data-tab="activity">Activity log</button>
+      </div>
+
+      <!-- Overview -->
+      <section data-view="overview" hidden>
+        <div class="alert warn" id="scan-warning" hidden></div>
+        <div class="alert warn" id="upi-warning" hidden>No UPI ID is set, so registrations are closed. Add one under Settings.</div>
+        <div class="stats" id="stats"></div>
+        <div class="two-col">
+          <div class="card">
+            <h3>Event fill</h3>
+            <div id="fill"></div>
+          </div>
+          <div class="card">
+            <h3>Registration window</h3>
+            <p id="window-text"></p>
+            <div class="btn-row">
+              <button type="button" class="btn green" id="open-now">Open now</button>
+              <button type="button" class="btn red" id="close-now">Close now</button>
+              <button type="button" class="linkbtn" data-goto="settings">Set a schedule</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Registrations -->
+      <section data-view="registrations" hidden>
+        <div class="toolbar">
+          <div class="field grow">
+            <label for="f-q">Search</label>
+            <input id="f-q" type="search" placeholder="Name, roll number, team, phone, transaction ID, reg ID">
+          </div>
+          <div class="field">
+            <label for="f-event">Event</label>
+            <select id="f-event"><option value="">All events</option></select>
+          </div>
+          <div class="field">
+            <label for="f-status">Status</label>
+            <select id="f-status">
+              <option value="">All</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+        </div>
+        <div class="card flat bg-blue export-bar">
+          <strong>Export what is shown:</strong>
+          <label class="sr-only" for="x-layout">Export layout</label>
+          <select id="x-layout">
+            <option value="teams">One row per team</option>
+            <option value="participants">One row per participant</option>
+          </select>
+          <button type="button" class="btn sm white" data-export="xlsx">Excel (.xlsx)</button>
+          <button type="button" class="btn sm white" data-export="csv">CSV</button>
+          <button type="button" class="btn sm white" data-export="json">JSON</button>
+          <span class="small" id="reg-count"></span>
+        </div>
+        <div class="card table-card">
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Reg ID</th><th>Event</th><th>Team</th><th>Leader</th><th>Size</th><th>Amount</th><th>Transaction ID</th><th>Status</th></tr></thead>
+              <tbody id="reg-rows"></tbody>
+            </table>
+          </div>
+          <p class="empty" id="reg-empty" hidden>No registrations match these filters.</p>
+        </div>
+      </section>
+
+      <!-- Bank statement -->
+      <section data-view="reconcile" hidden>
+        <div class="two-col">
+          <div class="card">
+            <h3>Match payments against the bank statement</h3>
+            <p>Upload the statement for the UPI account. Every pending registration is checked: is its transaction ID in the statement, and does the row show the right amount?</p>
+            <div class="field">
+              <label for="st-file">Statement file (.xlsx, .csv or .txt, up to <span id="st-limit">5</span> MB)</label>
+              <input id="st-file" type="file" accept=".xlsx,.csv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            </div>
+            <p class="center muted small">or</p>
+            <div class="field">
+              <label for="st-text">Paste the statement text</label>
+              <textarea id="st-text" placeholder="Open the PDF statement, select all, copy, and paste here"></textarea>
+            </div>
+            <p class="hint">The statement is virus scanned, read in memory only, and never saved on the server.</p>
+            <p><button type="button" class="btn" id="st-run">Match payments</button></p>
+          </div>
+          <div class="card bg-yellow">
+            <h3>How to read the result</h3>
+            <p><span class="badge approved">Match</span> Transaction ID found and the amount appears in the same row. Safe to approve.</p>
+            <p><span class="badge pending">Check amount</span> Transaction ID found, but the expected amount was not seen in that row. Open the row and compare.</p>
+            <p><span class="badge rejected">Not found</span> Transaction ID is not in this statement. It may be a later payment, a typing mistake, or fake.</p>
+            <p class="small">Nothing is approved or rejected until you press a button. Rejecting an entry frees its roll numbers, so real students blocked by a fake entry can register again.</p>
+          </div>
+        </div>
+        <div id="st-result" hidden>
+          <div class="card flat bg-blue export-bar mt">
+            <strong id="st-summary"></strong>
+            <button type="button" class="btn sm green" id="st-approve">Approve ticked matches</button>
+            <button type="button" class="btn sm red" id="st-reject">Reject ticked "not found"</button>
+          </div>
+          <div class="card table-card">
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th><span class="sr-only">Select</span></th><th>Result</th><th>Reg ID</th><th>Team</th><th>Transaction ID</th><th>Expected</th><th>Statement row</th></tr></thead>
+                <tbody id="st-rows"></tbody>
+              </table>
+            </div>
+            <p class="empty" id="st-empty" hidden>There are no pending registrations to check.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Events -->
+      <section data-view="events" hidden>
+        <p><button type="button" class="btn" id="ev-add">Add event</button></p>
+        <div class="event-admin" id="ev-list"></div>
+      </section>
+
+      <!-- Student list -->
+      <section data-view="students" hidden>
+        <div class="stats" id="ro-stats"></div>
+        <div class="two-col">
+          <div class="card">
+            <h3>Upload the 1st year student list</h3>
+            <p>Use an Excel or CSV file with one student per row and these column headings: <strong>Roll number</strong>, <strong>Name</strong>, <strong>Branch</strong>, and optionally <strong>Phone</strong> and <strong>Email</strong>.</p>
+            <div class="field">
+              <label for="ro-file">Student list file (.xlsx or .csv)</label>
+              <input id="ro-file" type="file" accept=".xlsx,.csv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            </div>
+            <p class="center muted small">or</p>
+            <div class="field">
+              <label for="ro-text">Paste rows copied from a spreadsheet</label>
+              <textarea id="ro-text" placeholder="Roll number, Name, Branch, Phone, Email"></textarea>
+            </div>
+            <div class="radio-row mt">
+              <label class="check"><input type="radio" name="ro-mode" value="replace" checked><span>Replace the whole list</span></label>
+              <label class="check"><input type="radio" name="ro-mode" value="merge"><span>Add to the list and update existing</span></label>
+            </div>
+            <p><button type="button" class="btn" id="ro-import">Upload list</button></p>
+            <div id="ro-result" aria-live="polite"></div>
+          </div>
+          <div class="card bg-yellow">
+            <h3>How the list is used</h3>
+            <div class="field">
+              <label class="check"><input type="checkbox" id="ro-required"><span><strong>Only students on this list can register</strong></span></label>
+              <p class="hint">A student types a roll number and the name and branch are filled in from this list and cannot be changed. If the list has the leader's email, that email is used too. Roll numbers that are not on the list are refused.</p>
+            </div>
+            <div class="field mt">
+              <label class="check"><input type="checkbox" id="ro-phone"><span>The team leader's phone must match the phone on this list</span></label>
+              <p class="hint">Applies only to students whose phone is on the list. Makes it harder to register in someone else's name, but a student whose number changed will need your help.</p>
+            </div>
+            <div class="field mt">
+              <label class="check"><input type="checkbox" id="ro-verify"><span><strong>The team leader must verify their email with a code</strong></span></label>
+              <p class="hint">A 6 digit code is emailed before payment. With the list on, it goes to the email the college has for that roll number, so nobody can register as someone else. Leaders also get an email when their registration is received, confirmed or rejected.</p>
+            </div>
+            <div class="mail-status mt" id="ro-mail"></div>
+            <div class="inline-form mt">
+              <div class="field">
+                <label for="ro-test-to">Send a test email to</label>
+                <input id="ro-test-to" type="email" placeholder="you@example.com" autocomplete="email">
+              </div>
+              <button type="button" class="btn white" id="ro-test">Send test</button>
+            </div>
+            <p class="mt"><button type="button" class="linkbtn" id="ro-clear">Delete the whole list</button></p>
+          </div>
+        </div>
+        <div class="toolbar mt">
+          <div class="field grow">
+            <label for="ro-q">Find a student</label>
+            <input id="ro-q" type="search" placeholder="Roll number or name">
+          </div>
+        </div>
+        <div class="card table-card roster-list">
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Roll number</th><th>Name</th><th>Branch</th><th>Phone</th><th>Email</th><th><span class="sr-only">Actions</span></th></tr></thead>
+              <tbody id="ro-rows"></tbody>
+            </table>
+          </div>
+          <p class="empty" id="ro-empty" hidden>No students to show.</p>
+        </div>
+        <p class="hint" id="ro-more"></p>
+      </section>
+
+      <!-- Settings -->
+      <section data-view="settings" hidden>
+        <form class="settings-grid" id="settings" novalidate>
+          <div class="card">
+            <h3>Registration window</h3>
+            <div class="radio-row">
+              <label class="check"><input type="radio" name="regMode" value="open"><span>Open</span></label>
+              <label class="check"><input type="radio" name="regMode" value="closed"><span>Closed</span></label>
+              <label class="check"><input type="radio" name="regMode" value="scheduled"><span>Scheduled</span></label>
+            </div>
+            <div class="grid2" id="schedule-fields">
+              <div class="field">
+                <label for="opensAt">Opens at <span class="opt">(blank = already open)</span></label>
+                <input id="opensAt" type="datetime-local">
+              </div>
+              <div class="field">
+                <label for="closesAt">Closes at <span class="opt">(blank = stays open)</span></label>
+                <input id="closesAt" type="datetime-local">
+              </div>
+            </div>
+            <p class="hint">Times use this device's time zone. Each event can also be closed on its own from the Events tab.</p>
+          </div>
+
+          <div class="card">
+            <h3>Payment</h3>
+            <div class="grid2">
+              <div class="field">
+                <label for="upiId">UPI ID</label>
+                <input id="upiId" type="text" maxlength="80" placeholder="name@bank" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="upiName">Payee name shown to students</label>
+                <input id="upiName" type="text" maxlength="60">
+              </div>
+            </div>
+            <p class="hint">The QR code on the payment step is generated from this UPI ID with the exact amount filled in.</p>
+          </div>
+
+          <div class="card">
+            <h3>Event details</h3>
+            <div class="grid2">
+              <div class="field"><label for="eventName">Event name</label><input id="eventName" type="text" maxlength="60"></div>
+              <div class="field"><label for="eventDate">Event date</label><input id="eventDate" type="date"></div>
+              <div class="field"><label for="contactName">Contact person</label><input id="contactName" type="text" maxlength="60"></div>
+              <div class="field"><label for="contactPhone">Contact phone <span class="opt">(shown publicly)</span></label><input id="contactPhone" type="text" maxlength="20"></div>
+            </div>
+            <div class="field">
+              <label for="notice">Notice on the home page <span class="opt">(optional)</span></label>
+              <input id="notice" type="text" maxlength="240">
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Rules</h3>
+            <div class="field">
+              <label class="check"><input type="checkbox" id="allowMultiEvent"><span>A student may take part in more than one event</span></label>
+              <p class="hint">A roll number can never be registered twice in the same event.</p>
+            </div>
+            <div class="field">
+              <label for="branches">Branches <span class="opt">(one per line)</span></label>
+              <textarea id="branches"></textarea>
+            </div>
+          </div>
+
+          <div class="save-bar"><button class="btn big" type="submit">Save settings</button></div>
+        </form>
+      </section>
+
+      <!-- Activity -->
+      <section data-view="activity" hidden>
+        <div class="card table-card">
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Details</th></tr></thead>
+              <tbody id="audit-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/js/ui.js" defer></script>
+  <script src="/js/admin.js" defer></script>
+</body>
+</html>

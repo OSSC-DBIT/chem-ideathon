@@ -1,0 +1,77 @@
+services:
+  app:
+    build: .
+    image: ossc/ideathon-26:latest
+    restart: unless-stopped
+    init: true
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in the .env file}
+      UPI_ID: ${UPI_ID:-}
+      UPI_NAME: ${UPI_NAME:-Ideathon 26}
+      # Upload limits and virus scanning
+      MAX_SCREENSHOT_MB: ${MAX_SCREENSHOT_MB:-3}
+      MAX_STATEMENT_MB: ${MAX_STATEMENT_MB:-5}
+      CLAMAV_HOST: clamav
+      SCAN_REQUIRED: ${SCAN_REQUIRED:-false}
+      # Outgoing email (verification codes and status emails). Leave SMTP_HOST empty to switch email off.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_DAILY_LIMIT: ${MAIL_DAILY_LIMIT:-400}
+      TRUST_PROXY: "1"
+      TZ: Asia/Kolkata
+    volumes:
+      - ideathon-data:/data
+    expose:
+      - "3000"
+    networks:
+      - internal
+    # Hardening: read only filesystem, no Linux capabilities, no privilege escalation.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  # Virus scanner. Reachable only from the app, on the internal network.
+  # It downloads virus definitions on first start (a few minutes) and needs about 1.5 GB of RAM.
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    volumes:
+      - clamav-db:/var/lib/clamav
+    networks:
+      - internal
+
+  nginx:
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - internal
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  internal:
+
+volumes:
+  ideathon-data:
+  clamav-db:

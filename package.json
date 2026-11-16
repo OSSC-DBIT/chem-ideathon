@@ -1,0 +1,26 @@
+{
+  "name": "ideathon-26-registration",
+  "version": "2.0.0",
+  "description": "Registration platform for Ideathon '26, Department of Chemistry, Don Bosco Institute of Technology, Bengaluru. Built and maintained by OSSC.",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "bash scripts/smoke-test.sh"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "nodemailer": "^10.6.0",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.35.5"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  }
+}

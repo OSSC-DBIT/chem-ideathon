@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ideathon '26 | Department of Chemistry, DBIT</title>
+  <meta name="description" content="Register your team for Ideathon '26, organised by the Department of Chemistry, Don Bosco Institute of Technology, Bengaluru. 28 November 2026. Open to 1st year students.">
+  <meta name="theme-color" content="#ffe500">
+  <meta property="og:title" content="Ideathon '26 | Department of Chemistry, DBIT">
+  <meta property="og:description" content="Five events, one day. 28 November 2026 at Don Bosco Institute of Technology, Bengaluru.">
+  <meta property="og:image" content="/img/poster.jpeg">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/archivo-black.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <noscript><div class="alert error center">This site needs JavaScript to take registrations. Please turn it on in your browser settings and reload.</div></noscript>
+  <nav class="nav" aria-label="Main">
+    <div class="wrap">
+      <a class="brand" href="#top">IDEATHON <span>'26</span></a>
+      <div class="nav-links">
+        <a href="#events">Events</a>
+        <a href="#how">How it works</a>
+        <a href="#status">Check status</a>
+        <a class="btn sm" href="#register">Register</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="top">
+    <div class="wrap">
+      <div class="inst">
+        <img src="/img/dbit-header.jpg" width="1400" height="300"
+             alt="Don Bosco Institute of Technology, Kumbalagodu, Mysore Road, Bengaluru. An autonomous institution. Approved by AICTE, affiliated to VTU Belagavi, recognised by the Government of Karnataka, NAAC Grade A accredited, accredited by NBA.">
+      </div>
+    </div>
+
+    <section class="hero wrap">
+      <div class="hero-card on-dark">
+        <p class="hero-kicker">Department of Chemistry</p>
+        <p class="hero-organises">organises</p>
+        <h1><img src="/img/ideathon-title.jpg" width="1280" height="226" alt="Ideathon '26"></h1>
+        <p class="hero-lede">Five events. One day. Build a team, bring an idea, and <strong>show the campus what first years can do.</strong></p>
+        <div class="hero-cta">
+          <a class="btn big" href="#register">Register your team</a>
+          <a class="btn big white" href="#events">See the events</a>
+        </div>
+        <div class="stickers">
+          <span class="sticker bg-yellow"><small>DATE</small><span id="hero-date">28 Nov 2026</span></span>
+          <span class="sticker bg-pink"><small>ENTRY</small>&#8377;50 per head</span>
+          <span class="sticker bg-blue"><small>WHO</small>1st years only</span>
+          <span class="sticker bg-green"><small>WHERE</small>DBIT Campus</span>
+        </div>
+      </div>
+      <div class="alert info notice-bar" id="notice" hidden></div>
+    </section>
+
+    <div class="marquee" aria-hidden="true"><div class="marquee-track" id="marquee"></div></div>
+
+    <section class="section wrap" id="events" aria-labelledby="events-h">
+      <div class="section-title"><span class="num">01</span><h2 id="events-h">Events line-up</h2></div>
+      <div class="events" id="event-list" aria-live="polite"><p class="muted">Loading events...</p></div>
+    </section>
+
+    <section class="section wrap" id="how" aria-labelledby="how-h">
+      <div class="section-title"><span class="num">02</span><h2 id="how-h">How it works</h2></div>
+      <ol class="steps">
+        <li class="card bg-yellow"><strong>Pick an event</strong><span id="rule-step">Each student can take part in one event, so choose well.</span></li>
+        <li class="card bg-pink"><strong>Add your team</strong><span id="how-team">The team leader fills in every member's name and roll number.</span></li>
+        <li class="card bg-blue"><strong>Pay by UPI</strong>Scan the QR, pay the exact amount, then enter the transaction ID and upload the screenshot.</li>
+        <li class="card bg-green"><strong>Get confirmed</strong>The organisers verify the payment. Track it any time with your registration ID.</li>
+      </ol>
+    </section>
+
+    <section class="section wrap" id="register" aria-labelledby="register-h">
+      <div class="section-title"><span class="num">03</span><h2 id="register-h">Register</h2></div>
+
+      <div class="card bg-red" id="load-error" hidden>
+        <h3>Could not load the form</h3>
+        <p id="load-error-text"></p>
+        <button type="button" class="btn white" id="load-retry">Try again</button>
+      </div>
+
+      <div class="card bg-orange" id="reg-closed" hidden>
+        <h3 id="reg-closed-title">Registrations are closed</h3>
+        <p id="reg-closed-text" class="small"></p>
+        <p class="amount" id="countdown" hidden></p>
+      </div>
+
+      <div class="card bg-green ticket" id="ticket" hidden tabindex="-1">
+        <span class="badge pending">Payment verification pending</span>
+        <p class="code" id="t-code"></p>
+        <p><strong>Save this registration ID.</strong> You need it, with the leader's phone number, to check your status.</p>
+        <div class="ticket-rows" id="t-rows"></div>
+        <div class="btn-row center">
+          <button type="button" class="btn white" id="t-copy">Copy ID</button>
+          <button type="button" class="btn dark" id="t-again">Register another team</button>
+        </div>
+      </div>
+
+      <form class="card wizard" id="wizard" novalidate hidden>
+        <ol class="stepper" id="stepper" aria-label="Progress">
+          <li><b>1</b><span>Event</span></li>
+          <li><b>2</b><span>Team</span></li>
+          <li><b>3</b><span>Payment</span></li>
+          <li><b>4</b><span>Confirm</span></li>
+        </ol>
+
+        <div class="alert error" id="form-error" role="alert" hidden></div>
+
+        <div class="step" data-step="1">
+          <h3>Pick your event</h3>
+          <p class="muted" id="rule-hint">Each student can take part in one event only.</p>
+          <div class="pick" id="pick" role="radiogroup" aria-label="Event"></div>
+          <p class="err" data-err="event"></p>
+        </div>
+
+        <div class="step" data-step="2" hidden>
+          <h3 id="team-title">Your team</h3>
+          <p class="muted" id="team-rule"></p>
+          <div class="grid2">
+            <div class="field" id="team-name-field">
+              <label for="teamName">Team name</label>
+              <input id="teamName" type="text" maxlength="40" autocomplete="off">
+              <p class="err" data-err="teamName"></p>
+            </div>
+            <div class="field">
+              <label for="email">Leader's email</label>
+              <input id="email" type="email" maxlength="120" autocomplete="email">
+              <p class="hint" id="email-hint"></p>
+              <p class="err" data-err="email"></p>
+            </div>
+          </div>
+          <div id="members"></div>
+          <p class="err" data-err="members"></p>
+          <div class="total-bar card flat bg-yellow">
+            <button type="button" class="btn white" id="add-member">Add member</button>
+            <span><span id="total-calc"></span> <b id="total"></b></span>
+          </div>
+        </div>
+
+        <div class="step" data-step="3" hidden>
+          <h3>Pay and upload proof</h3>
+          <p class="muted">Pay the exact amount in one transaction. The organisers match it against the bank statement.</p>
+          <div class="pay">
+            <div class="qr-box"><img id="qr" alt="UPI QR code for the registration fee" width="420" height="420"></div>
+            <div>
+              <p class="label">Amount to pay</p>
+              <p class="amount" id="pay-amount"></p>
+              <div class="upi-line"><code id="upi-id"></code><button type="button" class="btn sm white" id="upi-copy">Copy UPI ID</button></div>
+              <p class="small muted">Paying to: <strong id="upi-name"></strong></p>
+              <a class="btn blue" id="upi-open" href="#">Open UPI app</a>
+              <p class="hint">The "Open UPI app" button works on phones. On a laptop, scan the QR code.</p>
+            </div>
+          </div>
+          <div class="grid2 pay-fields">
+            <div class="field">
+              <label for="utr">UPI transaction ID (UTR)</label>
+              <input id="utr" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="12 digit number">
+              <p class="hint">Find it in your UPI app under the payment details. It is 12 digits long.</p>
+              <p class="err" data-err="utr"></p>
+            </div>
+            <div class="field">
+              <label for="screenshot">Payment screenshot</label>
+              <div class="drop">
+                <img id="shot-preview" alt="Your payment screenshot" hidden>
+                <input id="screenshot" type="file" accept="image/jpeg,image/png,image/webp">
+              </div>
+              <p class="hint">JPG, PNG or WebP, up to 10 MB. It must show the amount and the transaction ID. Every upload is virus scanned.</p>
+              <p class="err" data-err="screenshot"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="step" data-step="4" hidden>
+          <h3>Check and confirm</h3>
+          <p class="muted">Details cannot be edited after you submit, so read them once.</p>
+          <div class="review"><dl id="review"></dl></div>
+          <div class="consents">
+            <div>
+              <label class="check"><input type="checkbox" id="consentFirstYear"><span>All members are 1st year students of Don Bosco Institute of Technology and the details above are correct.</span></label>
+              <p class="err" data-err="consentFirstYear"></p>
+            </div>
+            <div>
+              <label class="check"><input type="checkbox" id="consentPrivacy"><span>I have read and accept the <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>, and I have my teammates' permission to share their details.</span></label>
+              <p class="err" data-err="consentPrivacy"></p>
+            </div>
+          </div>
+          <div class="captcha" id="captcha-block">
+            <div class="captcha-img">
+              <img id="captcha-img" alt="Security check: an image showing five digits" width="260" height="90">
+              <button type="button" class="btn sm white" id="captcha-new">New image</button>
+            </div>
+            <div class="field">
+              <label for="captcha">Type the 5 digits you see</label>
+              <input id="captcha" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" autocomplete="off" placeholder="5 digits">
+              <p class="hint">This stops bots. Cannot read it? Press "New image". If you cannot use the image at all, contact the coordinator.</p>
+              <p class="err" data-err="captcha"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="wiz-nav">
+          <button type="button" class="btn white" id="back" hidden>Back</button>
+          <button type="button" class="btn" id="next">Continue</button>
+          <button type="submit" class="btn green big" id="submit" hidden>Submit registration</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="section wrap" id="status" aria-labelledby="status-h">
+      <div class="section-title"><span class="num">04</span><h2 id="status-h">Check status</h2></div>
+      <div class="card">
+        <form class="status-form" id="status-form" novalidate>
+          <div class="field">
+            <label for="s-code">Registration ID</label>
+            <input id="s-code" type="text" maxlength="12" placeholder="IDT26-XXXXXX" autocomplete="off" autocapitalize="characters">
+          </div>
+          <div class="field">
+            <label for="s-phone">Team leader's phone</label>
+            <input id="s-phone" type="tel" inputmode="numeric" maxlength="14" placeholder="10 digit number">
+          </div>
+          <button class="btn dark" type="submit" id="s-submit">Check</button>
+        </form>
+        <div class="saved" id="saved" hidden></div>
+        <div class="status-result" id="status-result" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="section wrap" aria-label="Patrons and organisers">
+      <div class="card people">
+        <p class="blessing">With the divine blessings of Sri. B. Bylappa</p>
+        <p class="role">Founder President, WET, Bengaluru</p>
+
+        <h3>Presided by</h3>
+        <div class="people-row">
+          <div><p class="name">Sri P.B. Manjunat</p><p class="role">Vice President, WET</p></div>
+          <div><p class="name">Sri Raghav Bylappa</p><p class="role">Secretary, WET</p></div>
+        </div>
+
+        <h3>Organising chairs and coordinator</h3>
+        <div class="people-row">
+          <div><p class="name">Dr. B.S Nagabhushana</p><p class="role">Principal, DBIT</p></div>
+          <div><p class="name">Dr. Manjunatha A.S</p><p class="role">HoD, Chemistry</p></div>
+          <div><p class="name">Prof Chinmayi G</p><p class="role">Coordinator</p></div>
+        </div>
+
+        <p class="small" id="contact" hidden></p>
+        <p><a href="/img/poster.jpeg" target="_blank" rel="noopener"><strong>View the event poster</strong></a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <a class="ossc" href="https://webuildnow.in" target="_blank" rel="noopener">
+        <img src="/img/ossc-logo.jpg" width="60" height="60" alt="">
+        <span>
+          <strong>Built and maintained by OSSC</strong>
+          <span class="muted small">OpenSource Students Club, DBIT. Engineering beyond the classroom.</span>
+        </span>
+      </a>
+      <div>
+        <div class="foot-links"><a href="/privacy">Privacy policy</a><a href="#status">Check status</a><a href="https://webuildnow.in" target="_blank" rel="noopener">webuildnow.in</a></div>
+        <p class="muted small">&copy; 2026 Department of Chemistry, Don Bosco Institute of Technology, Bengaluru</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/ui.js" defer></script>
+  <script src="/js/site.js" defer></script>
+</body>
+</html>
