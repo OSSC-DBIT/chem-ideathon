@@ -29,6 +29,15 @@ export const maskEmail = (email) => {
   return local && domain ? `${local.slice(0, 2)}***@${domain}` : '';
 };
 
+/**
+ * "Asha Rao" becomes "As** Ra*". The public roll number lookup returns this, so the form can
+ * confirm "yes, that is my teammate" without turning the lookup into a way to download the
+ * college's student list.
+ */
+export const maskName = (name) => String(name || '').split(' ').filter(Boolean)
+  .map((word) => (word.length <= 1 ? word : word.length === 2 ? `${word[0]}*` : word.slice(0, 2) + '*'.repeat(word.length - 2)))
+  .join(' ');
+
 const findStudent = db.prepare('SELECT roll, name, branch, phone, email FROM students WHERE roll = ?');
 const upsertStudent = db.prepare(`
   INSERT INTO students (roll, name, branch, phone, email) VALUES (?, ?, ?, ?, ?)

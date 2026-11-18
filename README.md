@@ -179,6 +179,9 @@ blocked separately by the registration rules, whether or not a captcha is solved
 - Strict Content Security Policy with no inline scripts or styles and no third party resources (fonts are self hosted).
 - Screenshots are resized in the browser, checked by file signature on the server, stored under random
   names outside the web root, and served only to signed in admins.
+- The public roll number lookup returns masked names and emails ("As** Ra*", "as***@example.com"), so it cannot be used
+  to download the student list. Full details are visible only in the admin panel.
+- A transaction ID that is already registered is refused before the captcha, virus scan or image processing run.
 - All SQL is parameterised. Spreadsheet exports are protected against formula injection.
 - Containers run as non root with a read only filesystem, no Linux capabilities and no privilege escalation.
 - Uploaded bank statements are processed in memory and never written to disk.

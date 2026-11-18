@@ -49,6 +49,7 @@ check "captcha cannot be reused" 'security check has expired' "$(post /api/regis
 R1=$(reg "$(team 1 Alpha A 111111111111 5)")
 check "register team"          '"amount":250'              "$R1"
 CODE=$(echo "$R1" | sed 's/.*"code":"\([^"]*\)".*/\1/')
+check "used utr needs no captcha" 'already been used'      "$(post /api/register "$(team 1 Beta B 111111111111 5)")"
 check "duplicate utr"          'already been used'         "$(reg "$(team 1 Beta B 111111111111 5)")"
 check "duplicate team name"    'team name is already'      "$(reg "$(team 1 alpha C 222222222222 5)")"
 check "duplicate roll"         'already registered'        "$(reg "$(team 1 Gamma A 333333333333 5)")"
@@ -121,14 +122,15 @@ check "roster bad file"        'No students were found'    "$(admin POST /studen
 check "roster search"          '"name":"Divya S"'          "$(admin GET '/students?q=divya')"
 check "roster on"              '"rosterRequired":true'     "$(admin PUT /settings '{"rosterRequired":true,"matchLeaderPhone":true}')"
 check "public shows roster"    '"rosterRequired":true'     "$(curl -s $B/api/public)"
-check "lookup fills names"     '"students":[{"name":"Asha Rao","branch":"CSE","email":"as***@dbit.example"},{"name":"Vikram N","branch":"ECE"}]' "$(precheck 5 Fresh '"rt1","RT2"')"
+check "lookup fills names"     '"students":[{"name":"As** Ra*","branch":"CSE","email":"as***@dbit.example"},{"name":"Vi**** N","branch":"ECE"}]' "$(precheck 5 Fresh '"rt1","RT2"')"
 check "lookup unknown roll"    'not in the 1st year student list' "$(precheck 5 Fresh '"RT1","RX9"')"
 rteam() { echo "{\"eventId\":5,\"teamName\":\"$1\",\"email\":\"lead@example.com\",\"members\":[{\"name\":\"Fake Name\",\"roll\":\"RT1\",\"branch\":\"Hacker\",\"phone\":\"$2\"},{\"roll\":\"RT2\"},{\"roll\":\"RT3\"},{\"roll\":\"RT4\"},{\"roll\":\"$3\"}],\"utr\":\"$4\",\"screenshot\":\"$PNG\",\"consentPrivacy\":true,\"consentFirstYear\":true}"; }
 check "unlisted roll refused"  'not in the 1st year student list' "$(reg "$(rteam Listed 9876500001 RX9 787878787878)")"
 check "leader phone mismatch"  'does not match the one the college has' "$(reg "$(rteam Listed 9876599999 RT5 787878787878)")"
 check "listed team registers"  '"status":"pending"'        "$(reg "$(rteam Listed 9876500001 RT5 787878787878)")"
 check "email comes from list"  '"leaderEmail":"asha.rao@dbit.example"' "$(admin GET '/registrations?q=RT1')"
-check "member email stays hidden" '"students":[{"name":"Vikram N","branch":"ECE"},{"name":"Asha Rao","branch":"CSE"}]' "$(precheck 4 Fresh '"RT2","RT1"' | sed 's/.*\("students".*\)}/\1/')"
+check "member email stays hidden" '"students":[{"name":"Vi**** N","branch":"ECE"},{"name":"As** Ra*","branch":"CSE"}]' "$(precheck 4 Fresh '"RT2","RT1"' | sed 's/.*\("students".*\)}/\1/')"
+check "lookup never shows full name" 'no' "$(precheck 5 Fresh '"RT1","RT2","RT3"' | grep -q 'Asha Rao\|Vikram\|Divya' && echo yes || echo no)"
 check "names come from list"   '"name":"Asha Rao","roll":"RT1","branch":"CSE"' "$(admin GET '/registrations?q=RT1')"
 check "remove student"         '"count":4'                 "$(admin DELETE /students/RT5 '{}')"
 check "clear list turns it off" '"count":0,"withPhone":0,"withEmail":0,"rosterRequired":false' "$(admin DELETE /students '{}')"

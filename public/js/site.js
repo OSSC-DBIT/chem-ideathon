@@ -196,7 +196,7 @@
       : `${event.title} needs ${event.minMembers === event.maxMembers ? event.minMembers : `${event.minMembers} to ${event.maxMembers}`} members, including the leader. The leader is the contact person for the team.`;
     $('#team-name-field').hidden = solo;
     if (info.rosterRequired) {
-      $('#team-rule').textContent += ' Type each roll number and the name is filled in from the college student list.';
+      $('#team-rule').textContent += ' Type each roll number and the name is filled in from the college student list. Names are partly hidden for privacy; check that the visible letters match your teammate.';
     }
 
     $('#members').replaceChildren(...members.map((m, i) => {

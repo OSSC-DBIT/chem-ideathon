@@ -8,7 +8,7 @@ import { rateLimit } from './security.js';
 import { MAX_SCREENSHOT_BYTES, UploadError, decodeImageDataUrl, sanitiseImage, scanOrThrow, limits } from './uploads.js';
 import { audit } from './db.js';
 import { createCaptcha, verifyCaptcha } from './captcha.js';
-import { getStudent, maskEmail } from './roster.js';
+import { getStudent, maskEmail, maskName } from './roster.js';
 import { mailConfigured, sendMailLater, messages } from './mailer.js';
 import { sendCode, checkCode, tokenValid, useToken, hasLiveChallenge, VerifyError } from './verify.js';
 
@@ -243,6 +243,12 @@ function findConflict(event, settings, teamName, rolls) {
   return null;
 }
 
+/** Is this submission the same registration that already holds this transaction ID? */
+function isSameRegistration(prior, event, data) {
+  return prior.event_id === event.id && prior.leader_phone === data.members[0].phone &&
+    prior.member_count === data.members.length && leaderRoll.get(prior.id)?.roll === data.members[0].roll;
+}
+
 class Conflict extends Error {
   constructor(message, fields = {}) {
     super(message);
@@ -269,15 +275,32 @@ router.post(
       return res.status(400).json({ error: 'Some details need fixing. Check the highlighted fields.', fields: errors });
     }
 
+    // A transaction ID that is already registered is settled right here, before the captcha,
+    // the virus scan or any image work. The very same registration sent again (double tap, or a
+    // retry after the connection dropped) gets the original answer; anything else is refused.
+    // Nothing costly can be triggered by reusing a known transaction ID.
+    const prior = utrTaken.get(data.utr);
+    if (prior) {
+      if (!isSameRegistration(prior, event, data)) {
+        return res.status(409).json({
+          error: 'This transaction ID has already been used.',
+          fields: { utr: 'This transaction ID is already used for another registration.' },
+        });
+      }
+      return res.status(200).json({
+        code: prior.code, eventTitle: event.title, teamName: prior.team_name, teamBased: !!event.team_based,
+        memberCount: prior.member_count, amount: prior.amount, status: prior.status,
+      });
+    }
+
     // Tell people about clashes before spending their captcha (the same check runs again inside the transaction).
     const early = findConflict(event, settings, data.teamName, data.members.map((m) => m.roll));
-    const replaying = !!utrTaken.get(data.utr); // a resubmit of an accepted registration is handled below
-    if (early && !replaying) return res.status(409).json({ error: early.message, fields: early.fields });
+    if (early) return res.status(409).json({ error: early.message, fields: early.fields });
 
     const mustVerifyEmail = settings.emailVerification && mailConfigured;
     if (mustVerifyEmail) {
       // The leader proved they own this email (and solved a captcha to get the code).
-      if (!replaying && !tokenValid(body.verifyToken, data.members[0].roll, data.email)) {
+      if (!tokenValid(body.verifyToken, data.members[0].roll, data.email)) {
         const message = "Verify the team leader's email first. The verification may have expired, or the leader's details were changed after verifying.";
         return res.status(400).json({ error: message, fields: { email: 'This email needs to be verified.' }, verify: 'required' });
       }
@@ -310,11 +333,10 @@ router.post(
       const saved = tx(() => {
         // A resubmit of the very same registration (double tap, or a retry after the
         // connection dropped) returns the original instead of an error.
-        const prior = utrTaken.get(data.utr);
-        if (prior) {
-          const sameRequest = prior.event_id === event.id && prior.leader_phone === data.members[0].phone &&
-            prior.member_count === data.members.length && leaderRoll.get(prior.id)?.roll === data.members[0].roll;
-          if (sameRequest) return { code: prior.code, status: prior.status, teamName: prior.team_name, replay: true };
+        // Checked again inside the transaction, in case two requests raced past the first check.
+        const racing = utrTaken.get(data.utr);
+        if (racing) {
+          if (isSameRegistration(racing, event, data)) return { code: racing.code, status: racing.status, teamName: racing.team_name, replay: true };
           throw new Conflict('This transaction ID has already been used.', { utr: 'This transaction ID is already used for another registration.' });
         }
         const conflict = findConflict(event, settings, data.teamName, data.members.map((m) => m.roll));
@@ -383,7 +405,9 @@ router.post(
         const s = getStudent(roll);
         if (!s) { unknown[`m${i}-roll`] = NOT_LISTED; return null; }
         // Only a masked email goes back to the browser, and only for the leader's own row.
-        return i === 0 && s.email ? { name: s.name, branch: s.branch, email: maskEmail(s.email) } : { name: s.name, branch: s.branch };
+        // Names and emails leave the server masked. The real values are filled in from the list at submit.
+        const shown = { name: maskName(s.name), branch: s.branch };
+        return i === 0 && s.email ? { ...shown, email: maskEmail(s.email) } : shown;
       });
     }
     const conflict = findConflict(event, settings, clean(req.body?.teamName, 40), rolls);
