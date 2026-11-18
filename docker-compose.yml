@@ -24,6 +24,11 @@ services:
       MAIL_DAILY_LIMIT: ${MAIL_DAILY_LIMIT:-400}
       TRUST_PROXY: "1"
       TZ: Asia/Kolkata
+    # When the mail server (or a cloudflared tunnel to it) runs on this machine, SMTP_ON_THIS_HOST is the
+    # mail server's real name. The name then resolves to the Docker host, and TLS still checks the
+    # certificate against the real name. Left empty, this line does nothing.
+    extra_hosts:
+      - "${SMTP_ON_THIS_HOST:-smtp-not-on-this-host.invalid}:host-gateway"
     volumes:
       - ideathon-data:/data
     expose:
@@ -55,8 +60,10 @@ services:
     depends_on:
       app:
         condition: service_healthy
+    # Published on localhost only: the Cloudflare tunnel on this machine connects here.
+    # Set HOST_BIND=0.0.0.0 only if the site must be reachable directly from the network.
     ports:
-      - "${HOST_PORT:-8080}:8080"
+      - "${HOST_BIND:-127.0.0.1}:${HOST_PORT:-8094}:8080"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     networks:

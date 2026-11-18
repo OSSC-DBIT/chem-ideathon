@@ -1,3 +1,4 @@
+import dns from 'node:dns/promises';
 import fs from 'node:fs';
 import nodemailer from 'nodemailer';
 
@@ -20,19 +21,55 @@ const TEST_FILE = process.env.NODE_ENV !== 'production' ? (process.env.MAIL_TEST
 export const mailConfigured = !!TEST_FILE || (!!HOST && !!FROM);
 export const mailInfo = { host: TEST_FILE ? 'test file' : HOST, from: FROM || 'test@localhost', dailyLimit: DAILY_LIMIT };
 
-const transporter = !TEST_FILE && HOST
-  ? nodemailer.createTransport({
-    host: HOST,
+/*
+ * The transport is created on first use. The mail server's name is resolved with the system
+ * resolver (which honours /etc/hosts), because the mail library's own DNS lookup would skip a
+ * name that Docker points at this machine (SMTP_ON_THIS_HOST). TLS still verifies the
+ * certificate against the real name through `servername`.
+ */
+let transporter = null;
+let transporterFor = '';
+async function getTransporter() {
+  const { address } = await dns.lookup(HOST);
+  if (transporter && transporterFor === address) return transporter;
+  if (transporter) transporter.close();
+  transporterFor = address;
+  transporter = nodemailer.createTransport({
+    host: address,
     port: PORT,
     secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : PORT === 465,
     auth: USER ? { user: USER, pass: PASS } : undefined,
+    // Never send a login over an unencrypted connection: with credentials, STARTTLS is mandatory.
+    requireTLS: !!USER && PORT !== 465,
+    tls: { servername: HOST },
     pool: true,
     maxConnections: 2,
     connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 20000,
-  })
-  : null;
+  });
+  return transporter;
+}
+
+/** Connects, starts TLS and logs in, without sending anything. Throws MailError with the reason. */
+export async function checkMailServer() {
+  if (TEST_FILE) return;
+  if (!HOST) throw new MailError('Email is not set up on this site.');
+  try {
+    await (await getTransporter()).verify();
+  } catch (err) {
+    console.error(`mail: connection check failed (${err.code || err.name}): ${err.message}`);
+    const reason = {
+      EAUTH: 'the mail server rejected the username or password',
+      ETIMEDOUT: 'the mail server did not answer (is the tunnel or mail server running, and is the port right?)',
+      ECONNREFUSED: 'nothing is listening on that host and port',
+      ESOCKET: 'the secure connection failed (the certificate may not match SMTP_HOST)',
+      ENOTFOUND: 'the mail server name could not be found',
+      EDNS: 'the mail server name could not be found',
+    }[err.code] || 'the mail server could not be reached';
+    throw new MailError(`Email is not working: ${reason}.`);
+  }
+}
 
 let day = '';
 let sentToday = 0;
@@ -54,7 +91,7 @@ export async function sendMail({ to, subject, text, html }) {
   }
   try {
     if (TEST_FILE) fs.appendFileSync(TEST_FILE, `${JSON.stringify({ to, subject, text })}\n`);
-    else await transporter.sendMail({ from: FROM, to, subject, text, html });
+    else await (await getTransporter()).sendMail({ from: FROM, to, subject, text, html });
     sentToday += 1;
   } catch (err) {
     console.error(`mail: sending failed (${err.code || err.name}): ${err.message}`);

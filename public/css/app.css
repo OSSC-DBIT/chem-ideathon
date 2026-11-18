@@ -528,3 +528,10 @@ input.locked:focus { box-shadow: none; background: #f1ecd6; }
 .mail-status { border: var(--bw) solid var(--ink); border-radius: 10px; background: var(--white); padding: 10px 12px; font-size: 0.92rem; }
 .inline-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
 .inline-form .field { flex: 1 1 200px; }
+
+/* Admin: lists inside cards */
+.card ul { margin: 0 0 12px; padding-left: 22px; }
+.card ul li { margin-bottom: 6px; }
+
+/* Keeps visually hidden labels inside a scrolling table from widening the page. */
+.table-scroll { position: relative; }

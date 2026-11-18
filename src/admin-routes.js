@@ -7,7 +7,7 @@ import {
 } from './security.js';
 import { statementRows, matchStatement } from './reconcile.js';
 import { buildTable, toCsv, toXlsx } from './export.js';
-import { mailConfigured, mailInfo, mailsSentToday, sendMail, sendMailLater, messages, MailError } from './mailer.js';
+import { mailConfigured, mailInfo, mailsSentToday, sendMail, sendMailLater, messages, MailError, checkMailServer } from './mailer.js';
 import { tableRows, readRoster, importStudents, studentCount, normaliseRoll } from './roster.js';
 import { MAX_STATEMENT_BYTES, UploadError, scanOrThrow, scannerConfigured, scannerHealthy, scanRequired, limits } from './uploads.js';
 
@@ -417,6 +417,17 @@ router.delete('/students', (req, res) => {
   res.json(rosterSummary());
 });
 
+// Connects and logs in to the mail server without sending anything.
+router.post('/mail/check', rateLimit({ windowMs: 10 * 60 * 1000, max: 30 }), async (req, res, next) => {
+  try {
+    await checkMailServer();
+    res.json({ ok: true });
+  } catch (err) {
+    if (err instanceof MailError) return res.status(502).json({ error: err.message });
+    next(err);
+  }
+});
+
 // Sends a test email so the organisers can confirm the SMTP settings before relying on them.
 router.post('/mail/test', rateLimit({ windowMs: 10 * 60 * 1000, max: 10 }), async (req, res, next) => {
   const to = clean(req.body?.to, 120).toLowerCase();
@@ -526,6 +537,7 @@ router.get('/overview', async (req, res) => {
     registration: registrationState(settings),
     upiConfigured: !!settings.upiId,
     scanner: { configured: scannerConfigured, healthy: await scannerHealthy(), required: scanRequired },
+    roster: { count: studentCount(), required: settings.rosterRequired, emailVerification: settings.emailVerification, mailConfigured },
     unscanned: db.prepare("SELECT COUNT(*) AS n FROM registrations WHERE scan_status != 'clean'").get().n,
     limits,
   });

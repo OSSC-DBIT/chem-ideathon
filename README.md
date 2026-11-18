@@ -51,8 +51,12 @@ cp .env.example .env      # set ADMIN_PASSWORD (12+ characters)
 docker compose up -d --build
 ```
 
-The site is on `http://<server>:8080` (change `HOST_PORT` in `.env`). Sign in at `/admin`,
-open **Settings**, and set the **UPI ID**. Registrations stay closed until a UPI ID is set.
+The site is on `http://127.0.0.1:8094` on that machine (change `HOST_PORT` in `.env`). It is published
+on localhost only; set `HOST_BIND=0.0.0.0` to reach it from other machines without a tunnel.
+Sign in at `/admin`, open **Settings**, and set the **UPI ID**. Registrations stay closed until a UPI ID is set.
+
+Deploying on the OSSC server, with the Cloudflare tunnel and the OSSC mail server:
+[docs/deploy-ossc-server.md](docs/deploy-ossc-server.md).
 
 Three containers run: `nginx` (the only one published), `app` (Node.js) and `clamav` (virus scanner).
 The last two are reachable on the internal network only.
@@ -66,12 +70,14 @@ docker compose down               # stop; data stays in the volume
 ### HTTPS
 
 Serve the site over HTTPS in production, because admin logins and student details travel over it.
-The usual setup on a shared server is to point the existing HTTPS gateway (nginx, Caddy, Cloudflare Tunnel)
-at `http://127.0.0.1:8080` and have it send `X-Forwarded-Proto: https`. The bundled nginx passes that
+The usual setup on a shared server is to point the existing HTTPS gateway (Cloudflare Tunnel, nginx, Caddy)
+at `http://127.0.0.1:8094` and have it send `X-Forwarded-Proto: https`. The bundled nginx passes that
 header on, and the app then marks the admin cookie as secure and sends HSTS.
 
-If a gateway sits in front, also uncomment the two `real_ip` lines in `nginx/default.conf` and set the
-gateway's address, so rate limits apply per student and not to the gateway.
+Behind a Cloudflare tunnel the visitor's address is taken from the `CF-Connecting-IP` header, so rate
+limits apply per student and not to the tunnel. That header is trusted from local and private addresses
+only, which is why the port is published on `127.0.0.1`. Behind a different gateway, change
+`real_ip_header` in `nginx/default.conf` to the header that gateway sets (usually `X-Forwarded-For`).
 
 ### Backup
 

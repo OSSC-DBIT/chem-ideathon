@@ -101,6 +101,11 @@
     events = o.events;
     showState(o.registration);
     $('#upi-warning').hidden = o.upiConfigured;
+    $('#roster-text').textContent = o.roster.count === 0
+      ? 'No student list has been uploaded yet. Without it, anyone can type any roll number and name. Upload the 1st year list to lock registrations to real students.'
+      : `${o.roster.count} students are on the list. Only listed students can register: ${o.roster.required ? 'ON' : 'OFF'}. Email verification: ${o.roster.emailVerification ? 'ON' : o.roster.mailConfigured ? 'OFF' : 'not available (email is not set up)'}.`;
+    $('#roster-card').classList.toggle('bg-orange', o.roster.count === 0 || !o.roster.required);
+    $('#ro-limit').textContent = o.limits.statementMb;
     statementLimitMb = o.limits.statementMb;
     $('#st-limit').textContent = statementLimitMb;
     const scanNote = !o.scanner.configured ? 'Virus scanning is switched off (no scanner configured). Uploads are still checked and re-encoded.'
@@ -511,6 +516,7 @@
     $('#ro-verify').checked = r.emailVerification;
     $('#ro-verify').disabled = !r.mail.configured;
     $('#ro-test').disabled = !r.mail.configured;
+    $('#ro-check').disabled = !r.mail.configured;
     $('#ro-mail').textContent = r.mail.configured
       ? `Email is set up: sending as ${r.mail.from} through ${r.mail.host}. Sent today: ${r.mail.sentToday} of ${r.mail.dailyLimit}.${r.emailVerification && r.count && r.withEmail < r.count ? ` Note: ${r.count - r.withEmail} student(s) on the list have no email, so their code goes to the email they type.` : ''}`
       : 'Email is not set up. Add SMTP_HOST, SMTP_USER, SMTP_PASS and MAIL_FROM to the .env file and restart to use email verification.';
@@ -584,6 +590,13 @@
   rosterSetting('rosterRequired', $('#ro-required'));
   rosterSetting('matchLeaderPhone', $('#ro-phone'));
   rosterSetting('emailVerification', $('#ro-verify'));
+
+  $('#ro-check').addEventListener('click', guard(async () => {
+    await busy($('#ro-check'), 'Checking...', async () => {
+      await call('/api/admin/mail/check', { method: 'POST', timeout: 45000 });
+      toast('The mail server accepted the connection and the login. Nothing was sent.');
+    });
+  }));
 
   $('#ro-test').addEventListener('click', guard(async () => {
     const to = $('#ro-test-to').value.trim();

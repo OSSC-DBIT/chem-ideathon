@@ -17,7 +17,7 @@ college server and maintained by OSSC.
 | Run for development | `ADMIN_PASSWORD=dev-password UPI_ID=test@upi CAPTCHA_TEST_CODE=24680 npm run dev` |
 | Run the tests | `npm test` (bash and curl needed; about a minute) |
 | Syntax check one file | `node --check src/public-routes.js` |
-| Full stack | `docker compose up -d --build` (site on port 8080) |
+| Full stack | `docker compose up -d --build` (site on http://127.0.0.1:8094) |
 
 There is no build step, no bundler, no TypeScript and no linter. The browser runs the files in
 `public/` as they are.

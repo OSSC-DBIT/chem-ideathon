@@ -58,6 +58,13 @@
             <h3>Event fill</h3>
             <div id="fill"></div>
           </div>
+          <div class="card" id="roster-card">
+            <h3>Student list</h3>
+            <p id="roster-text"></p>
+            <div class="btn-row">
+              <button type="button" class="btn" data-goto="students">Upload or manage the student list</button>
+            </div>
+          </div>
           <div class="card">
             <h3>Registration window</h3>
             <p id="window-text"></p>
@@ -167,10 +174,37 @@
       <!-- Student list -->
       <section data-view="students" hidden>
         <div class="stats" id="ro-stats"></div>
-        <div class="two-col">
+
+        <div class="card bg-blue">
+          <h3>File format</h3>
+          <p>One student per row. The first row must be the column headings. Save the sheet as <strong>Excel (.xlsx)</strong> or <strong>CSV (.csv)</strong>, up to <span id="ro-limit">5</span> MB and 20,000 rows. Old <strong>.xls</strong> files must be saved again as .xlsx.</p>
+          <div class="card flat table-card">
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Column</th><th>Needed?</th><th>Headings that are recognised</th><th>What goes in it</th><th>Example</th></tr></thead>
+                <tbody>
+                  <tr><td><strong>Roll number</strong></td><td>Yes</td><td>Roll number, Roll No, USN, Reg No, Registration number, Admission No, Student ID</td><td>3 to 20 letters and digits (also / and -). Capitals and spaces do not matter.</td><td class="nowrap">26CH001</td></tr>
+                  <tr><td><strong>Name</strong></td><td>Yes</td><td>Name, Student Name, Full Name</td><td>The student's full name, as it should appear on lists.</td><td class="nowrap">Asha Rao</td></tr>
+                  <tr><td><strong>Branch</strong></td><td>Optional</td><td>Branch, Department, Dept, Section, Course, Program, Stream</td><td>Any text.</td><td class="nowrap">CSE</td></tr>
+                  <tr><td><strong>Phone</strong></td><td>Optional</td><td>Phone, Mobile, Mobile No, Contact, WhatsApp</td><td>10 digit Indian mobile number. +91 or a leading 0 is fine.</td><td class="nowrap">9876500001</td></tr>
+                  <tr><td><strong>Email</strong></td><td>Optional, needed for email verification</td><td>Email, E-mail, Email ID</td><td>The address the verification code is sent to.</td><td class="nowrap">asha.rao@example.com</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <ul class="mt">
+            <li>Columns can be in any order, and extra columns (Sl No, Gender and so on) are ignored.</li>
+            <li>A title row above the headings is fine. Every sheet in an Excel file is read.</li>
+            <li>A row is skipped if its roll number is invalid, its name is empty, or the roll number already appeared. The result shows which rows were skipped and why.</li>
+            <li>No headings at all? Then the columns are read in this order: Roll number, Name, Branch, Phone, Email.</li>
+          </ul>
+          <p><a class="btn white" href="/student-list-template.csv" download>Download a template (.csv)</a></p>
+        </div>
+
+        <div class="two-col mt">
           <div class="card">
             <h3>Upload the 1st year student list</h3>
-            <p>Use an Excel or CSV file with one student per row and these column headings: <strong>Roll number</strong>, <strong>Name</strong>, <strong>Branch</strong>, and optionally <strong>Phone</strong> and <strong>Email</strong>.</p>
+            <p>Choose the file, or paste rows copied from a spreadsheet. The format is described above.</p>
             <div class="field">
               <label for="ro-file">Student list file (.xlsx or .csv)</label>
               <input id="ro-file" type="file" accept=".xlsx,.csv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
@@ -208,6 +242,7 @@
                 <input id="ro-test-to" type="email" placeholder="you@example.com" autocomplete="email">
               </div>
               <button type="button" class="btn white" id="ro-test">Send test</button>
+              <button type="button" class="btn white" id="ro-check">Check connection</button>
             </div>
             <p class="mt"><button type="button" class="linkbtn" id="ro-clear">Delete the whole list</button></p>
           </div>

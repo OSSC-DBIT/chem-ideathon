@@ -41,7 +41,7 @@ Data lives in `./data` (SQLite database and uploads). Delete the folder to start
 2. If you changed the page or the admin panel, open it in a browser at phone width (around 360 px)
    and at desktop width, and click through what you changed.
 3. If you changed `Dockerfile`, `docker-compose.yml` or `nginx/`, run `docker compose up -d --build`
-   and check that the site loads on port 8080.
+   and check that the site loads on http://127.0.0.1:8094.
 
 ## How to contribute
 
