@@ -331,6 +331,49 @@
 
           <div class="save-bar"><button class="btn big" type="submit">Save settings</button></div>
         </form>
+
+        <div class="settings-grid mt">
+          <div class="card">
+            <h3>Organiser accounts</h3>
+            <p>Give each organiser their own sign in. The activity log then shows who approved, rejected or exported what. Remove an account as soon as the person no longer needs access.</p>
+            <div class="card flat table-card">
+              <div class="table-scroll">
+                <table>
+                  <thead><tr><th>Username</th><th>Role</th><th>Added</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                  <tbody id="org-rows"></tbody>
+                </table>
+              </div>
+            </div>
+            <form class="inline-form mt" id="org-form" novalidate hidden>
+              <div class="field">
+                <label for="org-user">New username</label>
+                <input id="org-user" type="text" maxlength="30" autocomplete="off" autocapitalize="none" placeholder="for example chinmayi">
+              </div>
+              <div class="field">
+                <label for="org-pass">Password <span class="opt">(12 or more characters)</span></label>
+                <input id="org-pass" type="password" maxlength="200" autocomplete="new-password">
+              </div>
+              <button type="submit" class="btn">Add organiser</button>
+            </form>
+            <p class="hint" id="org-note"></p>
+          </div>
+
+          <div class="card" id="pw-card" hidden>
+            <h3>Change your password</h3>
+            <form class="inline-form" id="pw-form" novalidate>
+              <div class="field">
+                <label for="pw-current">Current password</label>
+                <input id="pw-current" type="password" autocomplete="current-password">
+              </div>
+              <div class="field">
+                <label for="pw-next">New password <span class="opt">(12 or more characters)</span></label>
+                <input id="pw-next" type="password" maxlength="200" autocomplete="new-password">
+              </div>
+              <button type="submit" class="btn">Change password</button>
+            </form>
+            <p class="hint">Changing it signs you out on your other devices.</p>
+          </div>
+        </div>
       </section>
 
       <!-- Activity -->

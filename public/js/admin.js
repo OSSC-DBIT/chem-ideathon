@@ -111,8 +111,9 @@
     const scanNote = !o.scanner.configured ? 'Virus scanning is switched off (no scanner configured). Uploads are still checked and re-encoded.'
       : !o.scanner.healthy ? `The virus scanner is not responding. ${o.scanner.required ? 'Uploads are being refused until it is back.' : 'Uploads are accepted and marked "not scanned".'} It can take a few minutes to start after a restart.`
       : o.unscanned ? `${o.unscanned} registration(s) were uploaded while the scanner was unavailable. Their screenshots were still re-encoded as plain images.` : '';
-    $('#scan-warning').textContent = scanNote;
-    $('#scan-warning').hidden = !scanNote;
+    const cryptNote = o.encryption ? '' : 'Data on this server is NOT encrypted on disk, because no DATA_KEY is set. That is only acceptable on a developer machine. ';
+    $('#scan-warning').textContent = cryptNote + scanNote;
+    $('#scan-warning').hidden = !(cryptNote + scanNote);
     $('#pending-count').hidden = o.pending.teams === 0;
     $('#pending-count').textContent = o.pending.teams;
 
@@ -645,7 +646,48 @@
 
   async function loadSettings() {
     fillSettings(await call('/api/admin/settings'));
+    await loadOrganisers();
   }
+
+  // ----- organiser accounts -----
+  async function loadOrganisers() {
+    const o = await call('/api/admin/organisers');
+    const row = (name, role, added, action) => el('tr', {},
+      el('td', {}, el('strong', {}, name), name === o.you ? el('small', {}, 'you') : null),
+      el('td', {}, role), el('td', {}, added), el('td', {}, action));
+    $('#org-rows').replaceChildren(
+      row(o.owner, 'Owner', 'set in the server settings', null),
+      ...o.organisers.map((a) => row(a.username, 'Organiser', `${dateTime(a.createdAt)} by ${a.createdBy}`,
+        o.youAreOwner ? el('button', { type: 'button', className: 'btn sm white', onclick: guard(async () => {
+          const ok = await confirmBox({ title: 'Remove organiser?', message: `${a.username} is signed out at once and can no longer sign in.`, okText: 'Remove', danger: true });
+          if (!ok) return;
+          await call(`/api/admin/organisers/${encodeURIComponent(a.username)}`, { method: 'DELETE' });
+          toast(`${a.username} removed`);
+          await loadOrganisers();
+        }) }, 'Remove') : null)));
+    $('#org-form').hidden = !o.youAreOwner;
+    $('#org-note').textContent = o.youAreOwner
+      ? 'Tell the person their password privately. They can change it themselves after signing in. The owner password is set in the .env file on the server.'
+      : 'Only the owner account can add or remove organisers.';
+    $('#pw-card').hidden = o.youAreOwner;
+  }
+
+  $('#org-form').addEventListener('submit', guard(async (e) => {
+    e.preventDefault();
+    await call('/api/admin/organisers', { method: 'POST', body: { username: $('#org-user').value, password: $('#org-pass').value } });
+    toast(`Organiser ${$('#org-user').value.trim().toLowerCase()} added`);
+    $('#org-user').value = '';
+    $('#org-pass').value = '';
+    await loadOrganisers();
+  }));
+
+  $('#pw-form').addEventListener('submit', guard(async (e) => {
+    e.preventDefault();
+    await call('/api/admin/password', { method: 'POST', body: { current: $('#pw-current').value, next: $('#pw-next').value } });
+    $('#pw-current').value = '';
+    $('#pw-next').value = '';
+    toast('Password changed');
+  }));
 
   $('#settings').addEventListener('submit', guard(async (e) => {
     e.preventDefault();

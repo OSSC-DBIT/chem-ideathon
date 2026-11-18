@@ -2,28 +2,101 @@ import crypto from 'node:crypto';
 import { db } from './db.js';
 
 // ---------------------------------------------------------------------------
-// Admin credentials come from the environment. The password is never stored;
-// only a scrypt hash is kept in memory for comparison.
+// Who can sign in.
+//
+// The OWNER account comes from the environment (ADMIN_USERNAME, ADMIN_PASSWORD). Its password
+// is never stored; only a scrypt hash is kept in memory. The owner can create ORGANISER
+// accounts from the admin panel, so each person signs in as themselves and the activity log
+// shows who did what. Organiser passwords are stored as salted scrypt hashes.
 // ---------------------------------------------------------------------------
 const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').trim();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 export const adminConfigured = ADMIN_PASSWORD.length > 0;
+export const OWNER = ADMIN_USERNAME;
+export const MIN_PASSWORD = 12;
 
-if (process.env.NODE_ENV === 'production' && ADMIN_PASSWORD.length < 12) {
+if (process.env.NODE_ENV === 'production' && ADMIN_PASSWORD.length < MIN_PASSWORD) {
   throw new Error('ADMIN_PASSWORD must be set and at least 12 characters long in production.');
 }
 
 const SALT = crypto.randomBytes(16);
-const scrypt = (text) => crypto.scryptSync(text, SALT, 32);
+const scrypt = (text, salt = SALT) => crypto.scryptSync(text, salt, 32);
 const passwordHash = adminConfigured ? scrypt(ADMIN_PASSWORD) : null;
 const sha256 = (text) => crypto.createHash('sha256').update(text).digest();
 
+const findOrganiser = db.prepare('SELECT username, salt, hash FROM organisers WHERE username = ?');
+const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,29}$/;
+
+/** Returns the account name when the username and password are right, otherwise null. */
 export function checkCredentials(username, password) {
-  if (!adminConfigured || typeof username !== 'string' || typeof password !== 'string') return false;
-  if (password.length > 200 || username.length > 100) return false;
-  const userOk = crypto.timingSafeEqual(sha256(username.trim()), sha256(ADMIN_USERNAME));
-  const passOk = crypto.timingSafeEqual(scrypt(password), passwordHash);
-  return userOk && passOk;
+  if (!adminConfigured || typeof username !== 'string' || typeof password !== 'string') return null;
+  if (password.length > 200 || username.length > 100) return null;
+  const name = username.trim();
+
+  const ownerOk = crypto.timingSafeEqual(sha256(name), sha256(OWNER)) &&
+    crypto.timingSafeEqual(scrypt(password), passwordHash);
+  if (ownerOk) return OWNER;
+
+  // The hash is computed whether or not the account exists, so the reply time does not
+  // reveal which usernames are real.
+  const row = findOrganiser.get(name.toLowerCase());
+  const hash = scrypt(password, row ? Buffer.from(row.salt, 'hex') : SALT);
+  if (row && crypto.timingSafeEqual(hash, Buffer.from(row.hash, 'hex'))) return row.username;
+  return null;
+}
+
+export const isOwner = (session) => !!session && session.username === OWNER;
+
+export function listOrganisers() {
+  return db.prepare('SELECT username, created_at AS createdAt, created_by AS createdBy FROM organisers ORDER BY username').all();
+}
+
+function checkNewPassword(password) {
+  if (typeof password !== 'string' || password.length < MIN_PASSWORD) return `Use a password of at least ${MIN_PASSWORD} characters.`;
+  if (password.length > 200) return 'That password is too long.';
+  return null;
+}
+
+function storePassword(username, password) {
+  const salt = crypto.randomBytes(16);
+  db.prepare('UPDATE organisers SET salt = ?, hash = ? WHERE username = ?')
+    .run(salt.toString('hex'), scrypt(password, salt).toString('hex'), username);
+}
+
+/** Creates an organiser account. Returns an error message, or null on success. */
+export function addOrganiser(username, password, createdBy) {
+  const name = typeof username === 'string' ? username.trim().toLowerCase() : '';
+  if (!USERNAME_RE.test(name)) return 'Usernames are 3 to 30 characters: small letters, digits, dot, dash or underscore.';
+  if (name === OWNER.toLowerCase()) return 'That username belongs to the owner account.';
+  const weak = checkNewPassword(password);
+  if (weak) return weak;
+  if (findOrganiser.get(name)) return 'That username is already taken.';
+  db.prepare('INSERT INTO organisers (username, salt, hash, created_at, created_by) VALUES (?, ?, ?, ?, ?)')
+    .run(name, '', '', new Date().toISOString(), createdBy);
+  storePassword(name, password);
+  return null;
+}
+
+/** Removes an organiser and signs them out everywhere. Returns false when there is no such account. */
+export function removeOrganiser(username) {
+  const name = String(username || '').trim().toLowerCase();
+  const removed = db.prepare('DELETE FROM organisers WHERE username = ?').run(name).changes > 0;
+  if (removed) db.prepare('DELETE FROM admin_sessions WHERE username = ?').run(name);
+  return removed;
+}
+
+/** Lets an organiser change their own password. Returns an error message, or null on success. */
+export function changeOwnPassword(session, current, next) {
+  if (isOwner(session)) return 'The owner password is set with ADMIN_PASSWORD in the .env file on the server.';
+  if (checkCredentials(session.username, typeof current === 'string' ? current : '') !== session.username) {
+    return 'The current password is not right.';
+  }
+  const weak = checkNewPassword(next);
+  if (weak) return weak;
+  storePassword(session.username, next);
+  // Other devices signed in with the old password are signed out; this session stays.
+  db.prepare('DELETE FROM admin_sessions WHERE username = ? AND token_hash != ?').run(session.username, session.token_hash);
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,6 +165,12 @@ export function requireAdmin(req, res, next) {
   }
   req.admin = session;
   res.set('Cache-Control', 'no-store');
+  next();
+}
+
+/** For routes only the owner account may use (managing organiser accounts). Runs after requireAdmin. */
+export function requireOwner(req, res, next) {
+  if (!isOwner(req.admin)) return res.status(403).json({ error: 'Only the owner account can do this.' });
   next();
 }
 

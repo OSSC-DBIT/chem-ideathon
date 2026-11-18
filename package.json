@@ -17,12 +17,13 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "bash scripts/smoke-test.sh"
+    "test": "bash scripts/smoke-test.sh && bash scripts/encryption-test.sh"
   },
   "engines": {
     "node": ">=22.13"
   },
   "dependencies": {
+    "better-sqlite3-multiple-ciphers": "^13.2.0",
     "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "nodemailer": "^10.6.0",

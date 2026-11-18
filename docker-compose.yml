@@ -7,6 +7,9 @@ services:
     environment:
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in the .env file}
+      # Encrypts the database and the payment screenshots on disk. Losing it means losing the data.
+      DATA_KEY: ${DATA_KEY:?Set DATA_KEY in the .env file (see .env.example)}
+      DATA_KEY_OLD: ${DATA_KEY_OLD:-}
       UPI_ID: ${UPI_ID:-}
       UPI_NAME: ${UPI_NAME:-Ideathon 26}
       # Upload limits and virus scanning
@@ -47,7 +50,7 @@ services:
   # Virus scanner. Reachable only from the app, on the internal network.
   # It downloads virus definitions on first start (a few minutes) and needs about 1.5 GB of RAM.
   clamav:
-    image: clamav/clamav:stable
+    image: clamav/clamav:stable@sha256:7054e3f34308c384ea43cd786ea17abf899bd44af40af9f1b099853d7a5c214e
     restart: unless-stopped
     volumes:
       - clamav-db:/var/lib/clamav
@@ -55,7 +58,7 @@ services:
       - internal
 
   nginx:
-    image: nginxinc/nginx-unprivileged:stable-alpine
+    image: nginxinc/nginx-unprivileged:stable-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03
     restart: unless-stopped
     depends_on:
       app:

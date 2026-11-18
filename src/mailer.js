@@ -1,5 +1,7 @@
 import dns from 'node:dns/promises';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import nodemailer from 'nodemailer';
 
 /*
@@ -71,6 +73,14 @@ export async function checkMailServer() {
   }
 }
 
+// Images shown in every email. They are attached to the message itself (referenced by "cid:"),
+// so they appear without the mail app having to download anything from the internet.
+const IMG_DIR = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'public', 'img');
+const INLINE_IMAGES = [
+  { filename: 'ideathon-26.jpg', path: path.join(IMG_DIR, 'mail-banner.jpg'), cid: 'banner@ideathon' },
+  { filename: 'ossc.jpg', path: path.join(IMG_DIR, 'mail-ossc.jpg'), cid: 'ossc@ideathon' },
+].filter((image) => fs.existsSync(image.path));
+
 let day = '';
 let sentToday = 0;
 function countForToday() {
@@ -91,7 +101,7 @@ export async function sendMail({ to, subject, text, html }) {
   }
   try {
     if (TEST_FILE) fs.appendFileSync(TEST_FILE, `${JSON.stringify({ to, subject, text })}\n`);
-    else await (await getTransporter()).sendMail({ from: FROM, to, subject, text, html });
+    else await (await getTransporter()).sendMail({ from: FROM, to, subject, text, html, attachments: html ? INLINE_IMAGES : [] });
     sentToday += 1;
   } catch (err) {
     console.error(`mail: sending failed (${err.code || err.name}): ${err.message}`);
@@ -110,15 +120,58 @@ export function sendMailLater(message) {
 // ---------------------------------------------------------------------------
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-/** Simple HTML email: a title, the first line, an optional highlighted box (code or ID), then the other lines. */
+const YEAR = new Date().getFullYear();
+const RIGHTS = `\u00A9 ${YEAR} OSSC, Don Bosco Institute of Technology, Bengaluru. All rights reserved.`;
+const SIGN_OFF = `Ideathon '26, Department of Chemistry, Don Bosco Institute of Technology, Bengaluru.
+Built and maintained by OSSC (OpenSource Students Club), DBIT. https://webuildnow.in
+This is an automated email; replies are not read.
+${RIGHTS}`;
+
+/** Plain text version of a message: the lines, an optional highlighted value, then the sign off. */
+function plain(lines, highlight) {
+  const body = highlight ? [lines[0], `    ${highlight}`, ...lines.slice(1)] : lines;
+  return `${body.join('\n\n')}\n\n-- \n${SIGN_OFF}`;
+}
+
+/**
+ * HTML email: Ideathon banner, a title, the first line, an optional highlighted box (code or
+ * registration ID), the other lines, then the OSSC footer. Built with tables and inline styles,
+ * which is what mail apps render reliably.
+ */
 function layout(title, lines, highlight) {
-  const para = (line) => `<p style="margin:0 0 12px">${esc(line)}</p>`;
+  const para = (line) => `<p style="margin:0 0 14px">${esc(line)}</p>`;
   const box = highlight
-    ? `<p style="margin:18px 0;font-size:30px;font-weight:800;letter-spacing:6px;background:#ffe500;border:3px solid #202124;border-radius:10px;padding:12px 16px;display:inline-block">${esc(highlight)}</p>`
+    ? `<p style="margin:6px 0 20px"><span style="display:inline-block;font-size:30px;font-weight:800;letter-spacing:6px;background:#ffe500;border:3px solid #202124;border-radius:10px;padding:12px 18px;color:#202124">${esc(highlight)}</span></p>`
     : '';
-  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#202124;max-width:520px;margin:0 auto;padding:20px;font-size:16px;line-height:1.5">
-<h2 style="margin:0 0 14px">${esc(title)}</h2>${para(lines[0])}${box}${lines.slice(1).map(para).join('')}
-<p style="margin:22px 0 0;font-size:13px;color:#666">Ideathon '26, Department of Chemistry, Don Bosco Institute of Technology, Bengaluru. Site maintained by OSSC. This is an automated email; replies are not read.</p></div>`;
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title></head>
+<body style="margin:0;padding:0;background:#fff6d8">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fff6d8"><tr><td align="center" style="padding:20px 10px">
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border:3px solid #202124;border-radius:14px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#202124">
+    <tr><td style="background:#202124;padding:18px 20px 14px;text-align:center">
+      <p style="margin:0 0 10px;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#ffe500">Department of Chemistry, DBIT</p>
+      <img src="cid:banner@ideathon" width="560" alt="Ideathon '26" style="display:block;width:100%;max-width:560px;height:auto;margin:0 auto;border:0;color:#ffe500;font-size:28px;font-weight:800">
+    </td></tr>
+    <tr><td style="padding:26px 26px 12px;font-size:16px;line-height:1.55">
+      <h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;color:#202124">${esc(title)}</h1>
+      ${para(lines[0])}${box}${lines.slice(1).map(para).join('')}
+    </td></tr>
+    <tr><td style="padding:0 26px 22px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:2px solid #202124"><tr>
+        <td width="64" valign="middle" style="padding:16px 14px 0 0"><img src="cid:ossc@ideathon" width="56" height="56" alt="OSSC" style="display:block;width:56px;height:56px;border-radius:50%;border:2px solid #202124"></td>
+        <td valign="middle" style="padding-top:16px;font-size:13px;line-height:1.5;color:#4a4636">
+          <strong style="color:#202124">Built and maintained by OSSC</strong><br>
+          OpenSource Students Club, Don Bosco Institute of Technology, Bengaluru<br>
+          <a href="https://webuildnow.in" style="color:#202124">webuildnow.in</a>
+        </td>
+      </tr></table>
+    </td></tr>
+    <tr><td style="background:#202124;padding:14px 20px;text-align:center;font-size:12px;line-height:1.5;color:#d9d5c3">
+      ${esc(RIGHTS)}<br>This is an automated email; replies are not read.
+    </td></tr>
+  </table>
+</td></tr></table>
+</body></html>`;
 }
 
 export const messages = {
@@ -131,7 +184,7 @@ export const messages = {
     return {
       to,
       subject: `${code} is your Ideathon '26 verification code`,
-      text: `${lines[0]}\n\n    ${code}\n\n${lines[1]}\n\n${lines[2]}`,
+      text: plain(lines, code),
       html: layout('Your verification code', lines, code),
     };
   },
@@ -141,14 +194,14 @@ export const messages = {
       `Amount: Rs. ${r.amount}. The organisers will now verify your payment. You will get another email when it is confirmed.`,
       'Keep this ID. With the team leader\'s phone number, it lets you check your status on the site.',
     ];
-    return { to, subject: `Ideathon '26: registration received (${r.code})`, text: `${lines[0]}\n\n    ${r.code}\n\n${lines[1]}\n\n${lines[2]}`, html: layout('Registration received', lines, r.code) };
+    return { to, subject: `Ideathon '26: registration received (${r.code})`, text: plain(lines, r.code), html: layout('Registration received', lines, r.code) };
   },
   approved(to, r) {
     const lines = [
       `Your payment is verified and your registration for ${r.eventTitle} is confirmed. Registration ID:`,
       'Show this ID at the registration desk on the event day. See you there.',
     ];
-    return { to, subject: `Ideathon '26: you are confirmed (${r.code})`, text: `${lines[0]}\n\n    ${r.code}\n\n${lines[1]}`, html: layout('You are confirmed', lines, r.code) };
+    return { to, subject: `Ideathon '26: you are confirmed (${r.code})`, text: plain(lines, r.code), html: layout('You are confirmed', lines, r.code) };
   },
   rejected(to, r) {
     const lines = [
@@ -156,10 +209,15 @@ export const messages = {
       `Reason: ${r.reason}`,
       'You can register again on the site with the correct details. If you think this is a mistake, contact the event coordinator.',
     ];
-    return { to, subject: `Ideathon '26: registration not accepted (${r.code})`, text: lines.join('\n\n'), html: layout('Registration not accepted', lines) };
+    return { to, subject: `Ideathon '26: registration not accepted (${r.code})`, text: plain(lines), html: layout('Registration not accepted', lines) };
   },
   test(to) {
     const lines = ['This is a test email from the Ideathon \'26 registration site. If you can read it, outgoing email is working.'];
-    return { to, subject: 'Ideathon \'26: test email', text: lines[0], html: layout('Email is working', lines) };
+    return { to, subject: 'Ideathon \'26: test email', text: plain(lines), html: layout('Email is working', lines) };
   },
 };
+
+/** For previews and tests: the HTML of a message with the inline images pointed at real files. */
+export function previewHtml(message) {
+  return INLINE_IMAGES.reduce((html, image) => html.replaceAll(`cid:${image.cid}`, `file:///${image.path.replace(/\\/g, '/')}`), message.html);
+}

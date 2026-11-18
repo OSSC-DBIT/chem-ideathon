@@ -62,6 +62,7 @@ Values to set in `.env`:
 ```dotenv
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=<a long password, 12 characters or more>
+DATA_KEY=<encryption key, 32 characters or more; generate it as shown below>
 HOST_PORT=8094
 
 # Mail: the mail server is on this same machine.
@@ -71,6 +72,14 @@ SMTP_USER=<mailbox login, ask the mail admin>
 SMTP_PASS=<mailbox password>
 MAIL_FROM=Ideathon 26 <mailbox@webuildnow.in>
 SMTP_ON_THIS_HOST=mail.webuildnow.in
+```
+
+Generate `DATA_KEY` on the server and **save a copy somewhere else** (a password manager, or a sealed
+note with the faculty coordinator). It encrypts the database and every payment screenshot. If it is
+lost, the data cannot be read by anyone, and backups are useless without it.
+
+```sh
+openssl rand -base64 32
 ```
 
 Notes on the mail settings:
@@ -113,7 +122,7 @@ Loader** and HTML **minification** off; they inject scripts that the site's Cont
 
 Open `https://ideathon.webuildnow.in/admin` and sign in.
 
-1. **Settings**: set the UPI ID and payee name.
+1. **Settings**: set the UPI ID and payee name, and add an organiser account for each person helping.
 2. **Student list**: upload the 1st year list (the format and a template are on that page).
 3. **Student list**: press **Check connection**, then **Send test** to your own address. Look in Spam too.
 4. **Student list**: tick "Only students on this list can register" and "The team leader must verify
@@ -130,12 +139,13 @@ docker compose ps                         # state of the three containers
 docker compose logs -f app                # app log (mail and scanner problems show here)
 git pull && docker compose up -d --build  # update to the latest code
 docker compose restart app                # after editing .env use: docker compose up -d
-docker compose cp app:/data ./backup-$(date +%F)   # copy the database and screenshots out
+bash scripts/backup.sh                    # encrypted backup into ./backups/
 ```
 
 Never run `docker compose down -v`: the `-v` deletes the database and the uploaded screenshots.
 
-Take a backup before the event day and again after registrations close.
+Take a backup before the event day and again after registrations close. Backups, restoring, changing
+the encryption key and troubleshooting are covered in [Operations](operations.md).
 
 ## Running it on a laptop with the real mail server
 

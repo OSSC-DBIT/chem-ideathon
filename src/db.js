@@ -1,14 +1,102 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DatabaseSync } from 'node:sqlite';
+import Database from 'better-sqlite3-multiple-ciphers';
+import { dbKey, oldDbKey, encryptionOn, sealFolder } from './vault.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, 'data');
 export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-export const db = new DatabaseSync(path.join(DATA_DIR, 'ideathon.db'));
+const DB_FILE = path.join(DATA_DIR, 'ideathon.db');
+
+// ---------------------------------------------------------------------------
+// Opening the database. With DATA_KEY set the whole file is encrypted (SQLCipher, AES-256).
+// ---------------------------------------------------------------------------
+function withKey(key) {
+  const handle = new Database(DB_FILE);
+  if (key) {
+    handle.pragma("cipher = 'sqlcipher'");
+    handle.pragma(`key = "x'${key}'"`);
+  }
+  try {
+    handle.prepare('SELECT COUNT(*) FROM sqlite_master').get(); // fails here when the key is wrong
+  } catch (err) {
+    handle.close(); // never leave a failed connection holding the file
+    throw err;
+  }
+  return handle;
+}
+
+function tryOpen(key) {
+  try {
+    return withKey(key);
+  } catch (err) {
+    if (err.code !== 'SQLITE_NOTADB') throw err;
+    return null;
+  }
+}
+
+/** Re-encrypts the file in place under the current key. `from` is the key it opens with now (null = plain). */
+function convert(from, what) {
+  const backup = `${DB_FILE}.converting`;
+  const handle = withKey(from);
+  handle.pragma('wal_checkpoint(TRUNCATE)');
+  handle.pragma('journal_mode = DELETE');
+  fs.copyFileSync(DB_FILE, backup); // safety copy, removed as soon as the result is verified
+  try {
+    if (!from) handle.pragma("cipher = 'sqlcipher'");
+    handle.pragma(`rekey = "x'${dbKey}'"`);
+    handle.close();
+    withKey(dbKey).close();
+  } catch (err) {
+    try { handle.close(); } catch { /* already closed */ }
+    fs.copyFileSync(backup, DB_FILE);
+    fs.rmSync(backup, { force: true });
+    throw new Error(`Could not ${what}: ${err.message}. The database was left unchanged.`);
+  }
+  fs.rmSync(backup, { force: true });
+  console.log(`database: ${what} done`);
+}
+
+function openDatabase() {
+  const isNew = !fs.existsSync(DB_FILE) || fs.statSync(DB_FILE).size === 0;
+  if (isNew) return withKey(dbKey);
+
+  const direct = tryOpen(dbKey);
+  if (direct) return direct;
+
+  if (!encryptionOn) {
+    throw new Error('The database is encrypted but DATA_KEY is not set. Set DATA_KEY to the key it was encrypted with.');
+  }
+  const plain = tryOpen(null);
+  if (plain) {
+    // An existing database from before encryption was switched on.
+    plain.close();
+    convert(null, 'encrypt the existing database');
+    return withKey(dbKey);
+  }
+  const previous = oldDbKey ? tryOpen(oldDbKey) : null;
+  if (previous) {
+    previous.close();
+    convert(oldDbKey, 'change the database key');
+    return withKey(dbKey);
+  }
+  throw new Error(
+    'DATA_KEY does not match this database. Use the key it was encrypted with. ' +
+    'To change the key, put the old one in DATA_KEY_OLD and the new one in DATA_KEY.',
+  );
+}
+
+export const db = openDatabase();
+
+// Screenshots: encrypt any that are still plain, and move any under an old key to the current one.
+{
+  const moved = sealFolder(UPLOAD_DIR);
+  if (moved.encrypted || moved.rekeyed) console.log(`uploads: ${moved.encrypted} encrypted, ${moved.rekeyed} moved to the new key`);
+  if (moved.unreadable) console.error(`uploads: ${moved.unreadable} file(s) could not be opened with DATA_KEY or DATA_KEY_OLD`);
+}
 
 db.exec(`
   PRAGMA journal_mode = WAL;
@@ -71,6 +159,14 @@ db.exec(`
     name   TEXT NOT NULL,
     branch TEXT NOT NULL DEFAULT '',
     phone  TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS organisers (
+    username   TEXT PRIMARY KEY,
+    salt       TEXT NOT NULL,
+    hash       TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS admin_sessions (

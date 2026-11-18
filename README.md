@@ -17,7 +17,9 @@ Built and maintained by [OSSC (OpenSource Students Club), DBIT](https://webuildn
 - Privacy policy at `/privacy`, with a required tick box.
 - "Already registered" is shown as soon as a roll number or team name is typed, and checked again before
   the payment step, so nobody pays for a team that cannot register.
-- A self hosted image captcha (five digits) on the final step. No outside service is involved.
+- A self hosted image captcha (five digits). No outside service is involved.
+- With the student list on: names fill in from the roll number, and the team leader confirms their
+  email with a code before paying.
 
 **For organisers (`/admin`)**
 
@@ -31,7 +33,9 @@ Built and maintained by [OSSC (OpenSource Students Club), DBIT](https://webuildn
 - **Settings**: open or close registration, or schedule opening and closing times. UPI ID, notice banner,
   branch list, and whether a student may join more than one event.
 - **Exports**: Excel, CSV or JSON, one row per team or one row per participant, using the current filters.
-- **Activity log**: sign ins, approvals, rejections, exports and setting changes.
+- **Student list**: upload the 1st year list; only listed students can register.
+- **Organiser accounts**: each organiser signs in as themselves; the owner adds and removes accounts.
+- **Activity log**: sign ins, approvals, rejections, exports and setting changes, with who did it.
 
 ## Rules the system enforces
 
@@ -47,7 +51,7 @@ Built and maintained by [OSSC (OpenSource Students Club), DBIT](https://webuildn
 ```sh
 git clone https://github.com/OSSC-DBIT/chem-ideathon.git
 cd chem-ideathon
-cp .env.example .env      # set ADMIN_PASSWORD (12+ characters)
+cp .env.example .env      # set ADMIN_PASSWORD (12+ characters) and DATA_KEY (see below)
 docker compose up -d --build
 ```
 
@@ -55,8 +59,15 @@ The site is on `http://127.0.0.1:8094` on that machine (change `HOST_PORT` in `.
 on localhost only; set `HOST_BIND=0.0.0.0` to reach it from other machines without a tunnel.
 Sign in at `/admin`, open **Settings**, and set the **UPI ID**. Registrations stay closed until a UPI ID is set.
 
+`DATA_KEY` encrypts the database and the payment screenshots. Generate one, and **keep a copy outside
+the server**: without it the data cannot be read by anyone.
+
+```sh
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
 Deploying on the OSSC server, with the Cloudflare tunnel and the OSSC mail server:
-[docs/deploy-ossc-server.md](docs/deploy-ossc-server.md).
+[docs/deploy-ossc-server.md](docs/deploy-ossc-server.md). All documentation: [docs/](docs/README.md).
 
 Three containers run: `nginx` (the only one published), `app` (Node.js) and `clamav` (virus scanner).
 The last two are reachable on the internal network only.
@@ -81,11 +92,15 @@ only, which is why the port is published on `127.0.0.1`. Behind a different gate
 
 ### Backup
 
-Everything (database and screenshots) is in the `ideathon-data` volume:
+Everything (database and screenshots, both encrypted) is in the `ideathon-data` volume:
 
 ```sh
-docker compose cp app:/data ./ideathon-backup
+bash scripts/backup.sh                      # writes ./backups/ideathon-<date>-<time>
+bash scripts/restore.sh backups/<folder>    # replaces the site's data with that backup
 ```
+
+A backup can only be read with the `DATA_KEY` that was in use when it was taken. Details are in
+[docs/operations.md](docs/operations.md#backup-and-restore).
 
 ## Run without Docker
 
@@ -94,7 +109,7 @@ Requires Node.js 22.13 or newer.
 ```sh
 npm install
 ADMIN_PASSWORD=some-long-password npm start      # http://localhost:3000
-npm test                                          # end to end API check (needs bash and curl)
+npm test                                          # API and encryption tests (needs bash and curl)
 ```
 
 On PowerShell: `$env:ADMIN_PASSWORD = 'some-long-password'; npm start`
@@ -172,6 +187,12 @@ blocked separately by the registration rules, whether or not a captcha is solved
 
 ## Security notes
 
+The full picture, including what is not protected, is in [docs/security.md](docs/security.md).
+
+- Everything stored on disk is encrypted: the database with SQLCipher (AES-256) and each screenshot with
+  AES-256-GCM, both from `DATA_KEY`.
+- Organisers have their own accounts with scrypt hashed passwords; only the owner manages accounts.
+
 - Admin password is compared with scrypt in constant time. Sessions are random tokens stored hashed in the
   database, expire after 8 hours, and use HttpOnly, SameSite=Strict cookies.
 - Every admin write needs a per session CSRF token, and all writes are checked for same origin.
@@ -190,7 +211,13 @@ blocked separately by the registration rules, whether or not a captcha is solved
 
 ```
 server.js               App setup, static files, error handling
-src/db.js               SQLite schema, settings, first run event seed
+src/db.js               Encrypted SQLite: opening, schema, settings, first run event seed
+src/vault.js            Encryption keys and file encryption
+src/uploads.js          Upload limits, image re-encoding, virus scan
+src/captcha.js          Image captcha
+src/roster.js           Student list
+src/mailer.js           Email
+src/verify.js           Email verification codes
 src/security.js         Admin auth, sessions, CSRF, headers, rate limiting
 src/public-routes.js    Public info, UPI QR, registration, status check
 src/admin-routes.js     Admin API: registrations, events, settings, exports, statement matching
@@ -198,7 +225,8 @@ src/reconcile.js        Bank statement parsing and matching
 src/export.js           CSV and Excel export
 public/                 Frontend (index, admin, privacy, css, js, fonts, images)
 nginx/default.conf      Reverse proxy
-scripts/smoke-test.sh   End to end API test
+scripts/                End to end API tests and encryption tests
+docs/                   Documentation
 ```
 
 ## Contributing

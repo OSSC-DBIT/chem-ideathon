@@ -2,7 +2,7 @@
 # End to end API check against a throwaway database. Usage: bash scripts/smoke-test.sh
 set -u
 cd "$(dirname "$0")/.."
-export DATA_DIR="$(mktemp -d)" ADMIN_PASSWORD='smoke-test-password' PORT=3987 UPI_ID='ideathon@upi' CAPTCHA_TEST_CODE=24680
+export DATA_DIR="$(mktemp -d)" ADMIN_PASSWORD='smoke-test-password' PORT=3987 UPI_ID='ideathon@upi' CAPTCHA_TEST_CODE=24680 DATA_KEY='smoke-test-data-key-0123456789abcdef'
 export MAIL_TEST_FILE="$DATA_DIR/mails.jsonl"
 node server.js > "$DATA_DIR/server.log" 2>&1 &
 PID=$!
@@ -72,8 +72,9 @@ check "corrupt image"          'damaged or could not be read' "$(reg "$(with_ima
 node scripts/make-test-image.mjs huge > "$DATA_DIR/huge.txt"
 setjson "$(team 3 Delta D 666666666666 5)" screenshot "@$DATA_DIR/huge.txt"
 check "image over size limit"  'too large'                 "$(send)"
-check "stored as clean jpeg"   'ffd8ff'                    "$(for f in "$DATA_DIR"/uploads/*.jpg; do od -An -tx1 -N3 "$f" | tr -d ' 
-'; break; done)"
+check "upload encrypted on disk"  'IDT1'                    "$(for f in "$DATA_DIR"/uploads/*.jpg; do head -c 4 "$f"; break; done)"
+check "database encrypted on disk" 'no'                     "$(head -c 15 "$DATA_DIR/ideathon.db" | grep -q -a 'SQLite format 3' && echo yes || echo no)"
+check "no names in database file" '0'                       "$(cat "$DATA_DIR"/ideathon.db* | grep -c -a 'Student A' || true)"
 check "status lookup"          '"status":"pending"'        "$(post /api/status "{\"code\":\"$CODE\",\"phone\":\"9876543210\"}")"
 check "status wrong phone"     'No registration found'     "$(post /api/status "{\"code\":\"$CODE\",\"phone\":\"9876543211\"}")"
 check "cross site blocked"     'Cross site'                "$(curl -s -X POST $B/api/status -H "$J" -H 'Origin: https://evil.example' -d '{}')"
@@ -163,6 +164,30 @@ admin POST "/registrations/$VID/decision" '{"status":"approved"}' > /dev/null
 check "confirmed email sent"   'you are confirmed'         "$(tail -1 "$MAILS")"
 admin PUT /settings '{"emailVerification":false,"rosterRequired":false}' > /dev/null
 admin DELETE /students '{}' > /dev/null
+# ---- organiser accounts ----
+check "weak organiser password" 'at least 12 characters'   "$(admin POST /organisers '{"username":"priya","password":"short"}')"
+check "bad organiser username" 'Usernames are 3 to 30'     "$(admin POST /organisers '{"username":"P R","password":"a-long-enough-password"}')"
+check "owner name is reserved" 'belongs to the owner'      "$(admin POST /organisers '{"username":"admin","password":"a-long-enough-password"}')"
+check "add organiser"          '"username":"priya"'        "$(admin POST /organisers '{"username":"Priya","password":"a-long-enough-password"}')"
+check "duplicate organiser"    'already taken'             "$(admin POST /organisers '{"username":"priya","password":"another-long-password"}')"
+OJAR="$DATA_DIR/ojar"
+OLOGIN=$(curl -s -c "$OJAR" -X POST $B/api/admin/login -H "$J" -d '{"username":"priya","password":"a-long-enough-password"}')
+OCSRF=$(echo "$OLOGIN" | sed 's/.*"csrf":"\([^"]*\)".*/\1/')
+org() { curl -s -b "$OJAR" -X "$1" "$B/api/admin$2" -H "$J" -H "X-CSRF-Token: $OCSRF" ${3:+-d "$3"}; }
+check "organiser signs in"     '"username":"priya","csrf"' "$OLOGIN"
+check "organiser is not owner" '"owner":false'             "$OLOGIN"
+check "organiser can work"     '"registrations":['         "$(org GET /registrations)"
+check "organiser cannot add accounts" 'Only the owner'     "$(org POST /organisers '{"username":"friend","password":"a-long-enough-password"}')"
+check "organiser cannot remove accounts" 'Only the owner'  "$(org DELETE /organisers/priya '{}')"
+check "organiser wrong current password" 'current password is not right' "$(org POST /password '{"current":"nope","next":"a-brand-new-password"}')"
+check "organiser changes password" '"ok":true'             "$(org POST /password '{"current":"a-long-enough-password","next":"a-brand-new-password"}')"
+check "old password stops working" 'Wrong username'        "$(post /api/admin/login '{"username":"priya","password":"a-long-enough-password"}')"
+org PUT /settings '{"notice":""}' > /dev/null
+check "log names the organiser" '"actor":"priya","action":"settings.updated"' "$(admin GET /audit)"
+check "owner cannot change password here" 'ADMIN_PASSWORD' "$(admin POST /password '{"current":"x","next":"a-brand-new-password"}')"
+check "remove organiser"       '"organisers":[]'           "$(admin DELETE /organisers/priya '{}')"
+check "removed organiser is signed out" 'Please sign in'   "$(org GET /registrations)"
+check "removed organiser cannot sign in" 'Wrong username'  "$(post /api/admin/login '{"username":"priya","password":"a-brand-new-password"}')"
 check "csv export"             'Reg ID'                    "$(admin GET '/export?format=csv&layout=participants&status=approved')"
 check "xlsx export"            'PK'                        "$(admin GET '/export?format=xlsx' | head -c 2)"
 check "add event"              '"title":"Debate"'          "$(admin POST /events '{"title":"Debate","teamBased":true,"minMembers":2,"maxMembers":3,"maxTeams":1,"fee":50}')"

@@ -15,7 +15,7 @@ college server and maintained by OSSC.
 | --- | --- |
 | Install | `npm install` |
 | Run for development | `ADMIN_PASSWORD=dev-password UPI_ID=test@upi CAPTCHA_TEST_CODE=24680 npm run dev` |
-| Run the tests | `npm test` (bash and curl needed; about a minute) |
+| Run the tests | `npm test` (bash and curl needed; about two minutes) |
 | Syntax check one file | `node --check src/public-routes.js` |
 | Full stack | `docker compose up -d --build` (site on http://127.0.0.1:8094) |
 
@@ -26,8 +26,9 @@ There is no build step, no bundler, no TypeScript and no linter. The browser run
 
 ```
 server.js               Express app: headers, routers, static files, error handler
-src/db.js               SQLite (node:sqlite) schema, settings store, migrations, event seed
-src/security.js         Admin login, sessions, CSRF, security headers, rate limiter
+src/db.js               Encrypted SQLite (better-sqlite3-multiple-ciphers): open and convert, schema, settings, migrations
+src/vault.js            Keys derived from DATA_KEY; sealing and opening files on disk
+src/security.js         Owner and organiser accounts, sessions, CSRF, security headers, rate limiter
 src/public-routes.js    /api/public, /qr, /captcha, /precheck, /verify/*, /register, /status
 src/admin-routes.js     /api/admin/*: registrations, exports, statement matching, events, students, settings
 src/uploads.js          Upload limits, image re-encoding (sharp), ClamAV scan
@@ -42,6 +43,9 @@ public/admin.html       Admin panel; js/admin.js is its script
 public/js/ui.js         Shared helpers: el(), api(), toast, dialogs
 public/css/app.css      All styles (neobrutalist design tokens at the top)
 scripts/smoke-test.sh   End to end API tests
+scripts/encryption-test.sh  Encryption across restarts: convert, wrong key, key change
+scripts/backup.sh, restore.sh  Consistent encrypted backup, and restore with correct file ownership
+docs/                   Documentation for students, organisers, operators and developers
 nginx/default.conf      Reverse proxy and rate limits
 ```
 
@@ -64,6 +68,11 @@ nginx/default.conf      Reverse proxy and rate limits
 9. **Rejected registrations free their slot, roll numbers and transaction ID.** Queries that check
    for clashes filter on `status != 'rejected'`.
 10. **No real personal data** in code, tests, fixtures, commits or screenshots.
+11. **Nothing is written to disk unencrypted in production.** Files go through `sealFile()` and are read
+    with `openFile()` from `src/vault.js`. The database is opened only in `src/db.js`.
+12. **The public roll number lookup returns masked names and emails** (`maskName`, `maskEmail`). Full
+    values go to signed in admins only.
+13. **Account management is owner only** (`requireOwner`). Organisers can do everything else.
 
 ## Conventions
 
@@ -88,6 +97,8 @@ nginx/default.conf      Reverse proxy and rate limits
 
 ## Things that are easy to get wrong
 
+- `better-sqlite3` cannot bind `undefined` or booleans. Pass `null`, and `1` or `0`.
+- Dependency install scripts are off (`.npmrc`). Native modules must ship prebuilt binaries.
 - `express.json()` is applied per route with its own size limit. A new route that reads a body needs
   one (the admin router has a default of 100 kb).
 - Rate limits are per IP and a whole campus can share one IP. Keep limits generous for students and

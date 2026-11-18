@@ -8,6 +8,7 @@ import { rateLimit } from './security.js';
 import { MAX_SCREENSHOT_BYTES, UploadError, decodeImageDataUrl, sanitiseImage, scanOrThrow, limits } from './uploads.js';
 import { audit } from './db.js';
 import { createCaptcha, verifyCaptcha } from './captcha.js';
+import { sealFile } from './vault.js';
 import { getStudent, maskEmail, maskName } from './roster.js';
 import { mailConfigured, sendMailLater, messages } from './mailer.js';
 import { sendCode, checkCode, tokenValid, useToken, hasLiveChallenge, VerifyError } from './verify.js';
@@ -342,7 +343,7 @@ router.post(
         const conflict = findConflict(event, settings, data.teamName, data.members.map((m) => m.roll));
         if (conflict) throw new Conflict(conflict.message, conflict.fields);
 
-        fs.writeFileSync(filePath, image, { mode: 0o600 });
+        fs.writeFileSync(filePath, sealFile(image), { mode: 0o600 }); // encrypted on disk
         const regCode = newCode();
         const result = insertReg.run(
           regCode, event.id, data.teamName, data.email, data.members[0].phone,

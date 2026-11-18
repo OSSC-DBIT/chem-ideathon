@@ -643,8 +643,24 @@
   });
   $('#back').addEventListener('click', () => { clearErrors(); showStep(step - 1); });
 
+  // Enter inside a field must not submit the whole form from an early step. It behaves like
+  // "next field" instead, and on the last field of a step it moves to the Continue button.
+  // (Leaving the roll number field this way also runs the "already registered" check.)
+  wizard.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || step === 4) return;
+    const field = e.target;
+    if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement)) return;
+    if (['checkbox', 'radio', 'file', 'button', 'submit'].includes(field.type)) return;
+    e.preventDefault();
+    const current = $(`.step[data-step="${step}"]`, wizard);
+    const fields = $$('input, select', current).filter((n) => !n.readOnly && !n.disabled && n.type !== 'file' && n.offsetParent !== null);
+    const next = fields[fields.indexOf(field) + 1];
+    (next || $('#next')).focus();
+  });
+
   wizard.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (step !== 4) return; // only the last step may submit, whatever triggered it
     clearErrors();
     for (const n of [1, 2, 3, 4]) if (!validateStep(n)) return;
 

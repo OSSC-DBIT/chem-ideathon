@@ -4,8 +4,10 @@ import express from 'express';
 import { db, tx, audit, getSettings, saveSettings, registrationState, eventToJson, UPLOAD_DIR } from './db.js';
 import {
   requireAdmin, checkCredentials, createSession, destroySession, getSession, rateLimit, adminConfigured,
+  requireOwner, isOwner, OWNER, MIN_PASSWORD, listOrganisers, addOrganiser, removeOrganiser, changeOwnPassword,
 } from './security.js';
 import { statementRows, matchStatement } from './reconcile.js';
+import { openFile, encryptionOn } from './vault.js';
 import { buildTable, toCsv, toXlsx } from './export.js';
 import { mailConfigured, mailInfo, mailsSentToday, sendMail, sendMailLater, messages, MailError, checkMailServer } from './mailer.js';
 import { tableRows, readRoster, importStudents, studentCount, normaliseRoll } from './roster.js';
@@ -29,14 +31,14 @@ router.post(
   (req, res) => {
     if (!adminConfigured) return res.status(503).json({ error: 'Admin access is not configured. Set ADMIN_PASSWORD.' });
     const { username, password } = req.body || {};
-    if (!checkCredentials(username, password)) {
+    const name = checkCredentials(username, password);
+    if (!name) {
       audit('system', 'login.failed', `ip ${req.ip}`);
       return res.status(401).json({ error: 'Wrong username or password.' });
     }
-    const name = String(username).trim();
     const csrf = createSession(req, res, name);
     audit(name, 'login', `ip ${req.ip}`);
-    res.json({ username: name, csrf });
+    res.json({ username: name, csrf, owner: name === OWNER });
   },
 );
 
@@ -44,7 +46,7 @@ router.get('/me', (req, res) => {
   res.set('Cache-Control', 'no-store');
   const session = adminConfigured ? getSession(req) : null;
   if (!session) return res.status(401).json({ error: 'Please sign in.' });
-  res.json({ username: session.username, csrf: session.csrf });
+  res.json({ username: session.username, csrf: session.csrf, owner: isOwner(session) });
 });
 
 router.post('/logout', express.json({ limit: '1kb' }), (req, res) => {
@@ -127,13 +129,13 @@ router.get('/registrations/:id/screenshot', (req, res) => {
     'Content-Security-Policy': "default-src 'none'; sandbox",
     'Cache-Control': 'private, no-store',
   });
-  fs.createReadStream(file)
-    .on('error', (err) => {
-      console.error('screenshot read failed:', err.message);
-      if (!res.headersSent) res.status(500).json({ error: 'Could not read the screenshot file.' });
-      else res.destroy();
-    })
-    .pipe(res);
+  try {
+    res.send(openFile(fs.readFileSync(file))); // decrypted in memory, never written back in the clear
+  } catch (err) {
+    console.error('screenshot read failed:', err.message);
+    res.removeHeader('Content-Type');
+    res.status(500).json({ error: 'Could not read the screenshot file.' });
+  }
 });
 
 function decide(id, status, reason, actor) {
@@ -444,6 +446,33 @@ router.post('/mail/test', rateLimit({ windowMs: 10 * 60 * 1000, max: 10 }), asyn
 });
 
 // ---------------------------------------------------------------------------
+// Organiser accounts. Everyone can see who has access; only the owner can add or remove.
+// ---------------------------------------------------------------------------
+router.get('/organisers', (req, res) => {
+  res.json({ owner: OWNER, you: req.admin.username, youAreOwner: isOwner(req.admin), minPassword: MIN_PASSWORD, organisers: listOrganisers() });
+});
+
+router.post('/organisers', requireOwner, (req, res) => {
+  const error = addOrganiser(req.body?.username, req.body?.password, req.admin.username);
+  if (error) return res.status(400).json({ error });
+  audit(req.admin.username, 'organiser.added', String(req.body.username).trim().toLowerCase());
+  res.status(201).json({ organisers: listOrganisers() });
+});
+
+router.delete('/organisers/:username', requireOwner, (req, res) => {
+  if (!removeOrganiser(req.params.username)) return res.status(404).json({ error: 'There is no such account.' });
+  audit(req.admin.username, 'organiser.removed', String(req.params.username).trim().toLowerCase());
+  res.json({ organisers: listOrganisers() });
+});
+
+router.post('/password', rateLimit({ windowMs: 15 * 60 * 1000, max: 8, onlyFailures: true }), (req, res) => {
+  const error = changeOwnPassword(req.admin, req.body?.current, req.body?.next);
+  if (error) return res.status(400).json({ error });
+  audit(req.admin.username, 'password.changed', '');
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
 const isoOrEmpty = (value) => {
@@ -536,6 +565,7 @@ router.get('/overview', async (req, res) => {
     events: listEventsJson(),
     registration: registrationState(settings),
     upiConfigured: !!settings.upiId,
+    encryption: encryptionOn,
     scanner: { configured: scannerConfigured, healthy: await scannerHealthy(), required: scanRequired },
     roster: { count: studentCount(), required: settings.rosterRequired, emailVerification: settings.emailVerification, mailConfigured },
     unscanned: db.prepare("SELECT COUNT(*) AS n FROM registrations WHERE scan_status != 'clean'").get().n,
