@@ -98,8 +98,9 @@ registration as `verifyToken`. Five wrong codes cancel the code.
 
 - The first member is the leader and must have a phone number.
 - With the student list on, `name`, `branch` and the leader's `email` are ignored and taken from the list.
-- `section` must be one of the sections in `/api/public`, unless the student list has a section for
-  that roll number, in which case the list's value is used.
+- `section` must be one of the sections in `/api/public`. When `allowOtherSection` is on (it is in
+  `/api/public` too), any typed value of 1 to 20 letters, digits, spaces and `& / -` is accepted as
+  well. If the student list has a section for that roll number, the list's value is used instead.
 - Send `verifyToken` when email verification is on, otherwise `captchaId` and `captchaAnswer`.
 - `201` with `{ "code", "eventTitle", "teamName", "teamBased", "memberCount", "amount", "status" }`.
 - `200` with the same shape when the identical registration was already accepted (safe retry).
@@ -182,6 +183,6 @@ statement `line`. Nothing is approved by this call.
 
 | Method and path | Notes |
 | --- | --- |
-| `GET /settings`, `PUT /settings` | Any subset of: `regMode`, `opensAt`, `closesAt`, `upiId`, `upiName`, `eventName`, `eventDate`, `venue`, `notice`, `contactName`, `contactPhone`, `allowMultiEvent`, `branches`, `sections`, `rosterRequired`, `matchLeaderPhone`, `emailVerification` |
+| `GET /settings`, `PUT /settings` | Any subset of: `regMode`, `opensAt`, `closesAt`, `upiId`, `upiName`, `eventName`, `eventDate`, `venue`, `notice`, `contactName`, `contactPhone`, `allowMultiEvent`, `branches`, `sections`, `allowOtherSection`, `rosterRequired`, `matchLeaderPhone`, `emailVerification` |
 | `GET /overview` | Totals, event fill, scanner and encryption state, student list summary |
 | `GET /audit` | The last 300 activity log entries |

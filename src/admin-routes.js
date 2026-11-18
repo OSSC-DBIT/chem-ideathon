@@ -549,6 +549,7 @@ router.put('/settings', (req, res) => {
     }
     patch.emailVerification = b.emailVerification === true;
   }
+  if ('allowOtherSection' in b) patch.allowOtherSection = b.allowOtherSection === true;
   if ('sections' in b) {
     const sections = Array.isArray(b.sections) ? [...new Set(b.sections.map((x) => tidySection(x)).filter(Boolean))].slice(0, 60) : [];
     if (!sections.length) return res.status(400).json({ error: 'Add at least one section.' });

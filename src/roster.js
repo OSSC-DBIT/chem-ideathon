@@ -19,7 +19,7 @@ const tidyPhone = (value) => {
 };
 
 /** "a", "Sec A" and "section a" all become "A"; anything else is kept as typed, in capitals. */
-export const tidySection = (value) => tidy(value, 30).replace(/^sec(tion)?\.?\s*[-:]?\s*/i, '').toUpperCase().slice(0, 20);
+export const tidySection = (value) => tidy(value, 30).replace(/^sec(tion)?\.?\s*[-:]?\s*/i, '').toUpperCase();
 
 const tidyEmail = (value) => {
   const email = tidy(value, 120).toLowerCase();

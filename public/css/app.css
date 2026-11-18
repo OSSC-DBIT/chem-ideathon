@@ -561,3 +561,7 @@ select.locked, select:disabled { background: #f1ecd6; color: var(--ink); opacity
 
 /* Cards inside the settings grid may shrink, so a wide table scrolls inside its card on phones. */
 .settings-grid > *, .settings-grid .card > * { min-width: 0; }
+
+/* The box for typing a section that is not in the list */
+.section-other { margin-top: 8px; text-transform: uppercase; }
+.section-other::placeholder { text-transform: none; }

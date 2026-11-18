@@ -33,7 +33,7 @@
     !ev.teamBased ? 'Solo' : ev.minMembers === ev.maxMembers ? `Team of ${ev.minMembers}` : `Team of ${ev.minMembers} to ${ev.maxMembers}`;
   const slotsLeft = (ev) => (ev.maxTeams > 0 ? Math.max(ev.maxTeams - ev.taken, 0) : null);
   const canRegister = (ev) => ev.isOpen && !ev.full;
-  const blank = () => ({ name: '', roll: '', branch: '', section: '', phone: '', sectionFromList: false });
+  const blank = () => ({ name: '', roll: '', branch: '', section: '', phone: '', sectionFromList: false, sectionOther: false });
 
   // -------------------------------------------------------------------------
   // Page content
@@ -171,11 +171,6 @@
     const locked = info.rosterRequired && (key === 'name' || key === 'branch');
     if (key === 'branch' && !info.rosterRequired) {
       input = el('select', { id }, el('option', { value: '' }, 'Select'), ...info.branches.map((b) => el('option', { value: b }, b)));
-    } else if (key === 'section') {
-      const options = [...info.sections];
-      if (members[i].section && !options.includes(members[i].section)) options.push(members[i].section);
-      input = el('select', { id }, el('option', { value: '' }, 'Select'), ...options.map((s) => el('option', { value: s }, s)));
-      if (members[i].sectionFromList) { input.disabled = true; input.classList.add('locked'); }
     } else {
       input = el('input', { id, type: 'text', ...props });
     }
@@ -218,6 +213,7 @@
       $('#team-rule').textContent += ' Type each roll number and the name is filled in from the college student list. Names are partly hidden for privacy; check that the visible letters match your teammate.';
     }
 
+    sectionSync = [];
     $('#members').replaceChildren(...members.map((m, i) => {
       const removable = i > 0 && members.length > event.minMembers;
       return el('div', { className: `member ${i === 0 ? 'lead' : ''}` },
@@ -228,7 +224,7 @@
           memberField(i, 'roll', 'Roll number', { maxLength: 20, autocapitalize: 'characters', autocomplete: 'off' }),
           memberField(i, 'name', 'Full name', { maxLength: 60, autocomplete: i === 0 ? 'name' : 'off' }),
           memberField(i, 'branch', 'Branch'),
-          memberField(i, 'section', 'Section'),
+          sectionField(i),
           memberField(i, 'phone', i === 0 ? 'Phone' : ['Phone ', el('span', { className: 'opt' }, '(optional)')],
             { type: 'tel', inputMode: 'numeric', maxLength: 14, autocomplete: i === 0 ? 'tel-national' : 'off', placeholder: '10 digit number' })));
     }));
@@ -288,22 +284,77 @@
   }
   $('#teamName').addEventListener('change', liveCheck);
 
-  // A section from the student list is shown and locked; without one the student picks it.
+  // ----- section: pick from the list, or "Other" and type it -----
+  const OTHER = '__other';
+  const tidySection = (value) => String(value || '').replace(/\s+/g, ' ').trim().replace(/^sec(tion)?\.?\s*[-:]?\s*/i, '').toUpperCase().slice(0, 20);
+  let sectionSync = []; // per member: redraws that member's section controls from the data
+
+  function sectionField(i) {
+    const m = members[i];
+    const id = `m${i}-section`;
+    const select = el('select', { id }, el('option', { value: '' }, 'Select'), ...info.sections.map((x) => el('option', { value: x }, x)));
+    if (info.allowOtherSection) select.append(el('option', { value: OTHER }, 'Other (type it)'));
+    const other = el('input', {
+      id: `${id}-other`, type: 'text', maxLength: 20, className: 'section-other', hidden: true,
+      placeholder: 'Type your section', autocapitalize: 'characters', autocomplete: 'off', ariaLabel: 'Your section',
+    });
+    const err = el('p', { className: 'err' });
+    err.dataset.err = id;
+
+    const sync = () => {
+      if (m.sectionFromList) {
+        // From the college's list: shown as it is and locked.
+        if (![...select.options].some((o) => o.value === m.section)) select.insertBefore(el('option', { value: m.section }, m.section), select.options[1] || null);
+        select.value = m.section;
+        other.hidden = true;
+      } else if (m.sectionOther && info.allowOtherSection) {
+        select.value = OTHER;
+        other.hidden = false;
+        if (other.value !== m.section) other.value = m.section;
+      } else {
+        m.sectionOther = false;
+        if (!info.sections.includes(m.section)) m.section = '';
+        select.value = m.section;
+        other.hidden = true;
+      }
+      select.disabled = m.sectionFromList;
+      select.classList.toggle('locked', m.sectionFromList);
+    };
+    sectionSync[i] = sync;
+
+    select.addEventListener('change', () => {
+      if (select.value === OTHER) {
+        m.sectionOther = true;
+        m.section = '';
+        sync();
+        other.focus();
+      } else {
+        m.sectionOther = false;
+        m.section = select.value;
+        sync();
+      }
+      setFieldError(id, '');
+      saveDraft();
+    });
+    other.addEventListener('input', () => { m.section = other.value; setFieldError(id, ''); saveDraft(); });
+    other.addEventListener('change', () => { m.section = tidySection(other.value); other.value = m.section; saveDraft(); });
+
+    sync();
+    return el('div', { className: 'field' }, el('label', { htmlFor: id }, 'Section'), select, other, err);
+  }
+
+  // A section from the student list is shown and locked; without one the student picks or types it.
   function setSection(i, fromList) {
     const m = members[i];
-    const select = $(`#m${i}-section`);
     if (fromList) {
       m.section = fromList;
       m.sectionFromList = true;
+      m.sectionOther = false;
     } else if (m.sectionFromList) {
       m.section = ''; // it belonged to the previous roll number
       m.sectionFromList = false;
     }
-    if (!select) return;
-    if (m.section && ![...select.options].some((o) => o.value === m.section)) select.append(el('option', { value: m.section }, m.section));
-    select.value = m.section;
-    select.disabled = m.sectionFromList;
-    select.classList.toggle('locked', m.sectionFromList);
+    if (sectionSync[i]) sectionSync[i]();
     if (m.section) setFieldError(`m${i}-section`, '');
   }
 
@@ -642,7 +693,8 @@
         else if (rolls.has(roll)) errors[`m${i}-roll`] = 'This roll number is repeated in your team. Each member needs their own roll number.';
         rolls.add(roll);
         if (!m.branch && !info.rosterRequired) errors[`m${i}-branch`] = 'Select a branch.';
-        if (!m.section) errors[`m${i}-section`] = 'Select the section.';
+        if (!String(m.section || '').trim()) errors[`m${i}-section`] = m.sectionOther ? 'Type your section.' : 'Select the section.';
+        else if (m.sectionOther && !/^[A-Za-z0-9][A-Za-z0-9 &/-]{0,19}$/.test(tidySection(m.section))) errors[`m${i}-section`] = 'Use letters and digits only, for example Q or B2.';
         if ((i === 0 || phone) && !/^[6-9]\d{9}$/.test(phone)) errors[`m${i}-phone`] = 'Enter a valid 10 digit mobile number.';
       });
     }
@@ -833,7 +885,8 @@
       members = draft.members.slice(0, 50).map((m) => ({
         name: String(m?.name || ''), roll: String(m?.roll || ''), phone: String(m?.phone || ''),
         branch: info.branches.includes(m?.branch) ? m.branch : '',
-        section: info.sections.includes(m?.section) ? m.section : '', sectionFromList: false,
+        section: String(m?.section || '').slice(0, 20), sectionFromList: false,
+        sectionOther: !!m?.sectionOther && !!info.allowOtherSection && !info.sections.includes(m?.section),
       }));
     }
     const ev = info.events.find((e) => e.id === draft.eventId);

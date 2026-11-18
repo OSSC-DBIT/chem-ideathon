@@ -211,7 +211,8 @@ const DEFAULT_SETTINGS = {
   upiName: (process.env.UPI_NAME || 'Ideathon 26').trim(),
   notice: '',
   branches: ['CSE', 'ISE', 'ECE', 'EEE', 'AI & ML', 'AI & DS', 'Mechanical', 'Civil'],
-  sections: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],   // the sections students can pick from
+  sections: 'ABCDEFGHIJKLMNOP'.split(''),               // A to P: the sections students can pick from
+  allowOtherSection: true,    // students may choose "Other" and type a section that is not in the list
   contactName: 'Prof Chinmayi G',
   contactPhone: '',
   allowMultiEvent: false,     // default rule: one student, one event
@@ -239,6 +240,13 @@ export function saveSettings(patch) {
   for (const [key, value] of Object.entries(patch)) {
     if (key in DEFAULT_SETTINGS) upsertSetting.run(key, JSON.stringify(value));
   }
+}
+
+// The built in section list grew from A-H to A-P. A saved list is upgraded only when it is still
+// exactly the old default, so a list an organiser changed on purpose is left alone.
+{
+  const saved = db.prepare("SELECT value FROM settings WHERE key = 'sections'").get();
+  if (saved && saved.value === JSON.stringify('ABCDEFGH'.split(''))) saveSettings({ sections: DEFAULT_SETTINGS.sections });
 }
 
 // ---------------------------------------------------------------------------

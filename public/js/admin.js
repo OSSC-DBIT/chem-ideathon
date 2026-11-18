@@ -948,6 +948,7 @@
     $('#allowMultiEvent').checked = settings.allowMultiEvent;
     $('#branches').value = settings.branches.join('\n');
     $('#sections').value = settings.sections.join('\n');
+    $('#allowOtherSection').checked = settings.allowOtherSection;
     knownSections = settings.sections;
     syncSchedule();
   }
@@ -1006,6 +1007,7 @@
       allowMultiEvent: $('#allowMultiEvent').checked,
       branches: $('#branches').value.split('\n'),
       sections: $('#sections').value.split('\n'),
+      allowOtherSection: $('#allowOtherSection').checked,
     };
     TEXT_SETTINGS.forEach((key) => { body[key] = $(`#${key}`).value; });
     fillSettings(await call('/api/admin/settings', { method: 'PUT', body }));

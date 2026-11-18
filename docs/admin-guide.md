@@ -210,8 +210,11 @@ email on the list is wrong, fix the list (Add to the list and update existing, w
 - **Payment**: UPI ID and the payee name students see.
 - **Event details**: name, date, contact person and phone (shown publicly), and an optional notice on the home page.
 - **Rules**: whether a student may join more than one event (off by default), the branch list used
-  when the student list is off, and the **section list** students pick from (A to H to start with;
+  when the student list is off, and the **section list** students pick from (A to P to start with;
   change it to match your college). A section that comes from the student list is used as it is.
+  **Let students choose "Other"** adds an "Other (type it)" choice for a section that is not in the
+  list; it is on to start with. Typed sections are stored in capitals ("sec q2" becomes Q2) and show
+  up in the section filter and in exports. Untick it to accept only the sections in your list.
 - **Organiser accounts**: add and remove organisers (owner only). Organisers can change their own password here.
 
 ## Activity log

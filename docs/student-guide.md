@@ -29,7 +29,8 @@ are full or closed cannot be chosen.
 2. Type each member's **roll number**. The name and branch fill in by themselves from the college's
    student list. Names are shown partly hidden, like `As** Ra*`, for privacy; check that the visible
    letters match your teammate.
-3. Choose each member's **section**. If the college's list already has it, it is filled in and locked.
+3. Choose each member's **section** (A to P). If yours is not there, choose **Other (type it)** and
+   type it. If the college's list already has it, it is filled in and locked.
 4. Enter the team leader's phone number. Phone numbers of other members are optional.
 
 Messages you may see under a roll number:
@@ -39,7 +40,9 @@ Messages you may see under a roll number:
 | This roll number is not in the 1st year student list | Typing mistake, or the student is missing from the list. Check the number; if it is right, contact the coordinator. |
 | This student is already registered for ... | That student is already in another team. Pick someone else, or ask them to sort it out with the coordinator. |
 | This is the same roll number as the team leader (or member 2, 3 ...) | You typed the same roll number twice. Each member needs their own. |
-| Select the section | Pick the member's section from the list. |
+| Select the section | Pick the member's section from the list, or choose Other and type it. |
+| Type your section | You chose Other but left the box empty. |
+| Use letters and digits only | A typed section can have letters, digits, spaces and the signs & / - (up to 20 characters). |
 
 Pressing **Enter** in a field moves to the next field. Use **Add member** and **Remove** to change
 the team size within the allowed range.

@@ -15,6 +15,8 @@ export const ROLL_RE = /^[A-Z0-9][A-Z0-9/-]{2,19}$/;
 export const PHONE_RE = /^[6-9]\d{9}$/;
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export const UTR_RE = /^\d{12}$/;
+/** A section typed by hand ("Other"): 1 to 20 letters, digits, spaces, and the signs & / - */
+export const SECTION_RE = /^[A-Z0-9][A-Z0-9 &/-]{0,19}$/;
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O or 1/I
 /** A new registration ID, for example IDT26-K7M2QX. Random, so it cannot be guessed from another one. */

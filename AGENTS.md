@@ -216,7 +216,9 @@ Keeping things in step
 - Hand added registrations have an empty `screenshot` and may have an empty `utr`. Code that reads
   either must cope with that.
 - A member's section comes from the student list when the list has one (and is then locked in the
-  form); otherwise the student picks from the `sections` setting. `tidySection()` normalises "sec a" to "A".
+  form); otherwise the student picks from the `sections` setting (A to P by default), or chooses "Other"
+  and types one when `allowOtherSection` is on. `tidySection()` normalises "sec a" to "A" and does
+  not shorten a value; an over-long typed section is refused by `SECTION_RE`.
 - Names in a registration are a copy. Editing a student updates the copies in live registrations;
   keep that propagation when changing `PUT /students/:roll`.
 - Removing a row in the admin team editor can fire a late `change` event for a row that is gone.

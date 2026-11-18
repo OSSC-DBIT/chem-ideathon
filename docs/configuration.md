@@ -119,7 +119,8 @@ Stored in the database, changed without a restart.
 | Event name, date, contact, notice | Settings | From the poster |
 | One student in more than one event | Settings, Rules | Off |
 | Branch list (used when the student list is off) | Settings, Rules | CSE, ISE, ECE, EEE, AI & ML, AI & DS, Mechanical, Civil |
-| Section list that students pick from | Settings, Rules | A, B, C, D, E, F, G, H |
+| Section list that students pick from | Settings, Rules | A to P |
+| Students may choose "Other" and type a section | Settings, Rules | On |
 | Only listed students can register | Student list | Off until a list is uploaded |
 | Leader's phone must match the list | Student list | Off |
 | Leader must verify their email | Student list | Off; needs email set up |

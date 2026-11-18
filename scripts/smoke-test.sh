@@ -2,7 +2,7 @@
 # End to end API check against a throwaway database. Usage: bash scripts/smoke-test.sh
 set -u
 cd "$(dirname "$0")/.."
-export DATA_DIR="$(mktemp -d)" ADMIN_PASSWORD='smoke-test-password' PORT=3987 UPI_ID='ideathon@upi' CAPTCHA_TEST_CODE=24680 DATA_KEY='smoke-test-data-key-0123456789abcdef'
+export DATA_DIR="$(mktemp -d)" ADMIN_PASSWORD='smoke-test-password' PORT=3987 UPI_ID='ideathon@upi' CAPTCHA_TEST_CODE=24680 REGISTER_RATE_LIMIT=500 DATA_KEY='smoke-test-data-key-0123456789abcdef'
 export MAIL_TEST_FILE="$DATA_DIR/mails.jsonl"
 node server.js > "$DATA_DIR/server.log" 2>&1 &
 PID=$!
@@ -227,7 +227,7 @@ admin DELETE /students '{}' > /dev/null
 # ---- sections ----
 check "public info lists sections" '"sections":["A","B"'    "$(curl -s $B/api/public)"
 check "section is required"     'Select the section'         "$(reg "$(team 5 Sectionless W 919191919191 5 | sed 's/,"section":"A"//g')")"
-check "unknown section refused" 'Select the section'         "$(reg "$(team 5 Sectionless W 919191919191 5 | sed 's/"section":"A"/"section":"ZZ"/g')")"
+check "nonsense section refused" 'Select the section'        "$(reg "$(team 5 Sectionless W 919191919191 5 | sed 's/"section":"A"/"section":"!!"/g')")"
 check "section typed loosely"   '"status":"pending"'         "$(reg "$(team 5 Sectioned W 919191919191 5 | sed 's/"section":"A"/"section":"sec b"/g')")"
 check "section stored"          '"roll":"RW1","branch":"CSE","phone":"9876543210","section":"B"' "$(admin GET '/registrations?q=RW1')"
 check "filter by section"       '"teamName":"Sectioned"'     "$(admin GET '/registrations?section=b')"
@@ -235,10 +235,21 @@ check "filter leaves others out" 'no'                        "$(admin GET '/regi
 check "export has a section column" '"Branch","Section","Phone"' "$(admin GET '/export?format=csv&layout=participants&q=Sectioned' | head -1)"
 check "export shows the section" '"RW1","CSE","B"'           "$(admin GET '/export?format=csv&layout=participants&q=Sectioned')"
 check "team export shows the section" 'Sec B'                "$(admin GET '/export?format=csv&layout=teams&q=Sectioned')"
-check "sections can be changed" '"sections":["P","Q"]'       "$(admin PUT /settings '{"sections":["p","Sec Q","p"]}')"
+check "sections go up to P"     '"N","O","P"]'               "$(curl -s $B/api/public)"
+check "other is offered"        '"allowOtherSection":true'   "$(curl -s $B/api/public)"
+check "section P accepted"      '"status":"pending"'         "$(reg "$(team 5 SectionP PP 969696969696 5 | sed 's/"section":"A"/"section":"p"/g')")"
+check "typed section accepted"  '"status":"pending"'         "$(reg "$(team 2 Typed X 959595959595 6 | sed 's/"section":"A"/"section":"sec q2"/g')")"
+check "typed section stored tidy" '"roll":"RX1","branch":"CSE","phone":"9876543210","section":"Q2"' "$(admin GET '/registrations?q=RX1')"
+check "filter finds a typed section" '"teamName":"Typed"'    "$(admin GET '/registrations?section=q2')"
+check "typed section too long"  'Select the section'         "$(reg "$(team 2 Long Z 979797979797 6 | sed 's/"section":"A"/"section":"ABCDEFGHIJKLMNOPQRSTUVWXYZ"/g')")"
+admin PUT /settings '{"allowOtherSection":false}' > /dev/null
+check "other switched off: public" '"allowOtherSection":false' "$(curl -s $B/api/public)"
+check "other switched off: typed refused" 'Select the section' "$(reg "$(team 2 Strict Z 979797979797 6 | sed 's/"section":"A"/"section":"Q9"/g')")"
+admin PUT /settings '{"allowOtherSection":true}' > /dev/null
+check "sections can be changed" '"sections":["P","Q"]'       "$(admin PUT /settings '{"sections":["p","Sec Q","p"],"allowOtherSection":false}')"
 check "old section no longer offered" 'Select the section'   "$(reg "$(team 2 Newsec Y 929292929292 6)")"
 check "sections need one entry" 'at least one section'       "$(admin PUT /settings '{"sections":[]}')"
-admin PUT /settings '{"sections":["A","B","C","D","E","F","G","H"]}' > /dev/null
+admin PUT /settings '{"sections":["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P"],"allowOtherSection":true}' > /dev/null
 admin POST /students/import "{\"kind\":\"text\",\"mode\":\"replace\",\"content\":\"USN,Student Name,Department,Sec,Mobile\\nRS7,Seema T,CSE,section c,9876577777\\nRS8,Sunil U,ECE,,\"}" > /dev/null
 check "import reads the section column" '"section":"C"'      "$(admin GET '/students?q=RS7')"
 check "department is not taken for the section" '"branch":"CSE"' "$(admin GET '/students?q=RS7')"

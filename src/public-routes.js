@@ -5,7 +5,7 @@ import express from 'express';
 import QRCode from 'qrcode';
 import { db, tx, getSettings, registrationState, eventToJson, UPLOAD_DIR } from './db.js';
 import { rateLimit } from './security.js';
-import { clean, cleanPhone, NAME_RE, ROLL_RE, PHONE_RE, EMAIL_RE, UTR_RE, newCode } from './rules.js';
+import { clean, cleanPhone, NAME_RE, ROLL_RE, PHONE_RE, EMAIL_RE, UTR_RE, SECTION_RE, newCode } from './rules.js';
 import { MAX_SCREENSHOT_BYTES, UploadError, decodeImageDataUrl, sanitiseImage, scanOrThrow, limits } from './uploads.js';
 import { audit } from './db.js';
 import { createCaptcha, verifyCaptcha } from './captcha.js';
@@ -75,6 +75,7 @@ router.get('/public', (req, res) => {
     maxScreenshotMb: limits.screenshotMb,
     branches: settings.branches,
     sections: settings.sections,
+    allowOtherSection: settings.allowOtherSection,
     contactName: settings.contactName,
     contactPhone: settings.contactPhone,
     registration: registrationState(settings),
@@ -163,8 +164,17 @@ function validate(body, event, settings) {
       if (!settings.branches.includes(m.branch)) errors[`m${i}-branch`] = 'Select a branch.';
     }
     // Section: the student list wins when it has one; otherwise the student picks from the organisers' list.
-    if (listed?.section) m.section = listed.section;
-    else if (!settings.sections.includes(m.section)) errors[`m${i}-section`] = 'Select the section.';
+    if (listed?.section) {
+      m.section = listed.section;
+    } else if (!settings.sections.includes(m.section)) {
+      // Not one of the listed sections: fine when "Other" is allowed and something sensible was typed.
+      const typed = settings.allowOtherSection && SECTION_RE.test(m.section);
+      if (!typed) {
+        errors[`m${i}-section`] = settings.allowOtherSection
+          ? 'Select the section, or choose Other and type it (letters and digits only).'
+          : 'Select the section.';
+      }
+    }
     if (i === 0 && listed && settings.matchLeaderPhone && listed.phone && PHONE_RE.test(m.phone) && listed.phone !== m.phone) {
       errors['m0-phone'] = 'This phone number does not match the one the college has for this roll number.';
     }
