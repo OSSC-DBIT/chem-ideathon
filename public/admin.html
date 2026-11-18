@@ -79,6 +79,10 @@
 
       <!-- Registrations -->
       <section data-view="registrations" hidden>
+        <p class="btn-row">
+          <button type="button" class="btn" id="reg-add">Add a registration by hand</button>
+          <span class="small muted">For a team that paid in cash, a late entry, or a correction. To change an existing team, open it and press Edit team.</span>
+        </p>
         <div class="toolbar">
           <div class="field grow">
             <label for="f-q">Search</label>
@@ -253,6 +257,7 @@
             <input id="ro-q" type="search" placeholder="Roll number or name">
           </div>
         </div>
+        <p class="btn-row"><button type="button" class="btn sm" id="ro-add">Add one student</button><span class="small muted">Use Edit on a row to correct a student after a bulk upload.</span></p>
         <div class="card table-card roster-list">
           <div class="table-scroll">
             <table>

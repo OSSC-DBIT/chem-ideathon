@@ -25,7 +25,8 @@ Built and maintained by [OSSC (OpenSource Students Club), DBIT](https://webuildn
 
 - **Overview**: pending, approved and rejected counts, verified collection, how full each event is.
 - **Registrations**: search and filter, open a registration to see the members and the payment screenshot,
-  then approve, reject with a reason, or delete.
+  then approve, reject with a reason, or delete. **Edit a team** (add, remove or swap members, change the
+  leader) or **add a registration by hand** for a team that paid in cash.
 - **Bank statement**: upload the statement (.xlsx, .csv, .txt) or paste its text. Each pending registration
   is matched by transaction ID and amount; review the result and approve the matches in one click.
 - **Events**: add, edit and remove events. Set team or solo, minimum and maximum team size,
@@ -33,7 +34,8 @@ Built and maintained by [OSSC (OpenSource Students Club), DBIT](https://webuildn
 - **Settings**: open or close registration, or schedule opening and closing times. UPI ID, notice banner,
   branch list, and whether a student may join more than one event.
 - **Exports**: Excel, CSV or JSON, one row per team or one row per participant, using the current filters.
-- **Student list**: upload the 1st year list; only listed students can register.
+- **Student list**: upload the 1st year list; only listed students can register. Add or correct a single
+  student without uploading again.
 - **Organiser accounts**: each organiser signs in as themselves; the owner adds and removes accounts.
 - **Activity log**: sign ins, approvals, rejections, exports and setting changes, with who did it.
 

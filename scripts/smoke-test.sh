@@ -164,6 +164,64 @@ admin POST "/registrations/$VID/decision" '{"status":"approved"}' > /dev/null
 check "confirmed email sent"   'you are confirmed'         "$(tail -1 "$MAILS")"
 admin PUT /settings '{"emailVerification":false,"rosterRequired":false}' > /dev/null
 admin DELETE /students '{}' > /dev/null
+# ---- adding and editing registrations by hand ----
+mm() { echo "{\"name\":\"$1\",\"roll\":\"$2\",\"branch\":\"CSE\",\"phone\":\"${3:-}\"}"; }
+mteam() { echo "{\"eventId\":3,\"teamName\":\"$1\",\"leaderEmail\":\"manual@example.com\",\"status\":\"${3:-approved}\",\"note\":\"Paid cash to the coordinator\",\"utr\":\"${4:-}\",\"override\":${5:-false},\"members\":[$2]}"; }
+FIVE="$(mm 'Mona A' rm1 9876522222),$(mm 'Mohan B' RM2),$(mm 'Mary C' RM3),$(mm 'Mani D' RM4),$(mm 'Maya E' RM5)"
+MADD=$(admin POST /registrations "$(mteam 'Manual Team' "$FIVE")")
+MID=$(echo "$MADD" | sed 's/.*"registration":{"id":\([0-9]*\).*/\1/')
+check "organiser adds a team"   '"source":"admin"'           "$MADD"
+check "added team is approved"  '"status":"approved"'        "$MADD"
+check "amount worked out"       '"amount":250'               "$MADD"
+check "no screenshot needed"    '"hasScreenshot":false'      "$MADD"
+check "roll numbers tidied"     '"roll":"RM1"'               "$MADD"
+check "screenshot says why"     'added by an organiser'      "$(admin GET /registrations/$MID/screenshot)"
+check "taken roll names the team" 'Already in team \"Manual Team\"' "$(admin POST /registrations "$(mteam 'Copycat' "$(mm 'Mona A' RM1 9876522222),$(mm 'New One' RN2),$(mm 'New Two' RN3),$(mm 'New Three' RN4),$(mm 'New Four' RN5)")")"
+check "taken team name"         'already uses this name'     "$(admin POST /registrations "$(mteam 'manual team' "$(mm 'N A' RN1 9876522223),$(mm 'N B' RN2),$(mm 'N C' RN3),$(mm 'N D' RN4),$(mm 'N E' RN5)")")"
+check "leader needs a phone"    "leader's 10 digit"          "$(admin POST /registrations "$(mteam 'No Phone' "$(mm 'N A' RN1),$(mm 'N B' RN2),$(mm 'N C' RN3),$(mm 'N D' RN4),$(mm 'N E' RN5)")")"
+check "bad transaction id"      'has 12 digits'              "$(admin POST /registrations "$(mteam 'Bad Utr' "$(mm 'N A' RN1 9876522223),$(mm 'N B' RN2),$(mm 'N C' RN3),$(mm 'N D' RN4),$(mm 'N E' RN5)" approved 12345)")"
+check "small team asks first"   '"needsOverride":true'       "$(admin POST /registrations "$(mteam 'Tiny' "$(mm 'N A' RN1 9876522223),$(mm 'N B' RN2)" pending)")"
+TINY=$(admin POST /registrations "$(mteam 'Tiny' "$(mm 'N A' RN1 9876522223),$(mm 'N B' RN2)" pending '' true)")
+check "small team after confirming" '"memberCount":2'        "$TINY"
+check "can be added as pending" '"status":"pending"'         "$TINY"
+check "public form sees the hand added roll" 'already registered' "$(precheck 2 Fresh '"RM3","RZ9"')"
+# edit: drop RM5, bring in RM6, make RM2 the leader
+EDIT=$(admin PUT /registrations/$MID "$(mteam 'Manual Team Renamed' "$(mm 'Mohan B' RM2 9876544444),$(mm 'Mona A' rm1),$(mm 'Mary C' RM3),$(mm 'Mani D' RM4),$(mm 'Mita F' RM6)")")
+check "edit: new leader first"  '"members":[{"name":"Mohan B","roll":"RM2"' "$EDIT"
+check "edit: leader phone follows" '"leaderPhone":"9876544444"' "$EDIT"
+check "edit: member swapped"    '"roll":"RM6"'               "$EDIT"
+check "edit: team renamed"      '"teamName":"Manual Team Renamed"' "$EDIT"
+check "edit: status kept"       '"status":"approved"'        "$EDIT"
+check "removed member is free"  '"ok":true'                  "$(precheck 2 Fresh '"RM5","RZ9"')"
+check "added member is taken"   'already registered'         "$(precheck 2 Fresh '"RM6","RZ9"')"
+GROW=$(admin PUT /registrations/$MID "$(mteam 'Manual Team Renamed' "$(mm 'Mohan B' RM2 9876544444),$(mm 'Mona A' RM1),$(mm 'Mary C' RM3),$(mm 'Mani D' RM4),$(mm 'Mita F' RM6),$(mm 'Maya E' RM5)")")
+check "edit: amount follows size" '"amount":300'             "$GROW"
+check "edit: old amount reported" '"amountBefore":250'       "$GROW"
+check "edit: cannot take another team's member" 'Already in team \"Tiny\"' "$(admin PUT /registrations/$MID "$(mteam 'Manual Team Renamed' "$(mm 'Mohan B' RM2 9876544444),$(mm 'N A' RN1),$(mm 'Mary C' RM3),$(mm 'Mani D' RM4),$(mm 'Mita F' RM6)")")"
+check "edit: repeated roll"     'repeated in the team'       "$(admin PUT /registrations/$MID "$(mteam 'Manual Team Renamed' "$(mm 'Mohan B' RM2 9876544444),$(mm 'Twin' RM2),$(mm 'Mary C' RM3),$(mm 'Mani D' RM4),$(mm 'Mita F' RM6)")")"
+check "edit: too small asks first" '"needsOverride":true'    "$(admin PUT /registrations/$MID "$(mteam 'Manual Team Renamed' "$(mm 'Mohan B' RM2 9876544444),$(mm 'Mona A' RM1)")")"
+REJ=$(admin GET '/registrations?status=rejected' | grep -o '"id":[0-9]*,"code"' | head -1 | grep -o '[0-9]*')
+check "edit: rejected is final" 'cannot be edited'           "$(admin PUT /registrations/$REJ "$(mteam 'X' "$FIVE")")"
+check "edit: unknown registration" 'Registration not found'  "$(admin PUT /registrations/99999 "$(mteam 'X' "$FIVE")")"
+check "log records the edit"    'registration.edited'        "$(admin GET /audit)"
+check "log says what changed"   'added RM6; removed RM5; leader is now RM2' "$(admin GET /audit)"
+check "export marks hand added" 'Organiser'                  "$(admin GET '/export?format=csv&q=Manual')"
+
+# ---- single students ----
+check "add one student"         '"name":"Solo Kid"'          "$(admin POST /students '{"roll":"rs1","name":"Solo Kid","branch":"CSE","email":"solo@dbit.example"}')"
+check "add: already listed"     'already on the list'        "$(admin POST /students '{"roll":"RS1","name":"Again"}')"
+check "add: bad roll"           'valid roll number'          "$(admin POST /students '{"roll":"!!","name":"Bad"}')"
+check "add: bad email"          'valid email'                "$(admin POST /students '{"roll":"RS2","name":"Bad Mail","email":"nope"}')"
+check "edit a student"          '"name":"Solo Kid Renamed","branch":"ECE","phone":"9876533333"' "$(admin PUT /students/rs1 '{"name":"Solo Kid Renamed","branch":"ECE","phone":"9876533333","email":""}')"
+check "edit: unknown student"   'not on the list'            "$(admin PUT /students/NOPE1 '{"name":"Nobody"}')"
+check "edit: name required"     'Enter the name'             "$(admin PUT /students/RS1 '{"name":""}')"
+check "lookup for the editor"   '"name":"Solo Kid Renamed"'  "$(admin POST /students/lookup '{"rolls":["rs1","NOPE1"]}')"
+admin POST /students '{"roll":"RM3","name":"Mary C"}' > /dev/null
+check "fixing a name updates the team too" '"registrationsUpdated":1' "$(admin PUT /students/RM3 '{"name":"Mary Corrected","branch":"ISE"}')"
+check "team shows the fixed name" '"name":"Mary Corrected","roll":"RM3","branch":"ISE"' "$(admin GET '/registrations?q=RM3')"
+check "list name wins in the editor" '"name":"Mary Corrected"' "$(admin PUT /registrations/$MID "$(mteam 'Manual Team Renamed' "$(mm 'Mohan B' RM2 9876544444),$(mm 'Mona A' RM1),$(mm 'Typed Wrong' RM3),$(mm 'Mani D' RM4),$(mm 'Mita F' RM6)")")"
+admin DELETE /students '{}' > /dev/null
+
 # ---- organiser accounts ----
 check "weak organiser password" 'at least 12 characters'   "$(admin POST /organisers '{"username":"priya","password":"short"}')"
 check "bad organiser username" 'Usernames are 3 to 30'     "$(admin POST /organisers '{"username":"P R","password":"a-long-enough-password"}')"
@@ -197,7 +255,7 @@ check "capacity full"          'is full'                   "$(reg "$(team 6 Two 
 check "close registrations"    '"state":"closed"'          "$(admin PUT /settings '{"regMode":"closed"}')"
 check "closed blocks register" 'Registrations are closed'  "$(reg "$(team 3 Late Z 999999999999 5)")"
 check "schedule future"        '"state":"upcoming"'        "$(admin PUT /settings '{"regMode":"scheduled","opensAt":"2099-01-01T00:00:00Z","closesAt":""}')"
-check "overview"               '"approved":{"teams":2'     "$(admin GET /overview | sed 's/"status":"approved",//')"
+check "overview"               '"approved":{"teams":3'     "$(admin GET /overview | sed 's/"status":"approved",//')"
 check "audit"                  'registration.approved'     "$(admin GET /audit)"
 check "delete"                 '"ok":true'                 "$(admin DELETE /registrations/3 '{}')"
 check "logout"                 '"ok":true'                 "$(admin POST /logout '{}')"

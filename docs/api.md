@@ -132,10 +132,16 @@ the `X-CSRF-Token` header with the value returned at sign in.
 | `GET /registrations?q=&event=&status=` | List with members |
 | `GET /registrations/:id/screenshot` | The decrypted JPEG |
 | `POST /registrations/:id/decision` | `{ status: "approved" \| "rejected" \| "pending", reason }`; a reason is required to reject |
+| `POST /registrations` | Add a registration by hand. `{ eventId, teamName, leaderEmail, utr, note, status, members, override }`. No captcha, code or screenshot. |
+| `PUT /registrations/:id` | Edit a team. `{ teamName, leaderEmail, utr, note, members, override }` replaces the member list; the first member is the leader. Returns `registration` and `amountBefore`. Not for rejected registrations. |
 | `POST /registrations/bulk-approve` | `{ ids: [...] }` |
 | `POST /registrations/bulk-reject` | `{ ids: [...], reason }` |
 | `DELETE /registrations/:id` | Deletes it and its screenshot |
 | `GET /export?format=csv\|xlsx\|json&layout=teams\|participants` | Same filters as the list |
+
+For both `POST /registrations` and `PUT /registrations/:id`: a team size outside the event's range, or a
+full event, answers `409 { needsOverride: true }`; send the same body again with `override: true` to
+accept it. A roll number that is already in another team is always refused.
 
 ### Bank statement
 
@@ -154,6 +160,9 @@ statement `line`. Nothing is approved by this call.
 | --- | --- |
 | `GET /students?q=` | Counts, the three switches, mail status, and up to 200 students |
 | `POST /students/import` | `{ kind, content, mode: "replace" \| "merge" }`; returns `imported`, `skipped`, `problems` |
+| `POST /students` | Adds one student: `{ roll, name, branch, phone, email }` |
+| `PUT /students/:roll` | Edits one student. Also updates the name and branch in their registrations; returns `registrationsUpdated`. |
+| `POST /students/lookup` | `{ rolls: [...] }` returns full details for each roll number (or `null`), for the team editor |
 | `DELETE /students/:roll` | Removes one student |
 | `DELETE /students` | Clears the list and switches the list check off |
 | `POST /mail/check` | Signs in to the mail server, sends nothing |

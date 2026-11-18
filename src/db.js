@@ -192,6 +192,8 @@ function addColumn(table, column, definition) {
 }
 addColumn('registrations', 'scan_status', "TEXT NOT NULL DEFAULT 'unscanned'"); // clean | unscanned
 addColumn('students', 'email', "TEXT NOT NULL DEFAULT ''");
+addColumn('registrations', 'source', "TEXT NOT NULL DEFAULT 'online'"); // online | admin (added by an organiser)
+addColumn('registrations', 'note', "TEXT NOT NULL DEFAULT ''");          // organiser's note, for example how a team paid
 
 // ---------------------------------------------------------------------------
 // Settings: a small key/value store, edited from the admin panel.

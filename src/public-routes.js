@@ -5,6 +5,7 @@ import express from 'express';
 import QRCode from 'qrcode';
 import { db, tx, getSettings, registrationState, eventToJson, UPLOAD_DIR } from './db.js';
 import { rateLimit } from './security.js';
+import { clean, cleanPhone, NAME_RE, ROLL_RE, PHONE_RE, EMAIL_RE, UTR_RE, newCode } from './rules.js';
 import { MAX_SCREENSHOT_BYTES, UploadError, decodeImageDataUrl, sanitiseImage, scanOrThrow, limits } from './uploads.js';
 import { audit } from './db.js';
 import { createCaptcha, verifyCaptcha } from './captcha.js';
@@ -15,19 +16,6 @@ import { sendCode, checkCode, tokenValid, useToken, hasLiveChallenge, VerifyErro
 
 export const router = express.Router();
 
-const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O or 1/I
-const newCode = () =>
-  'IDT26-' + Array.from(crypto.randomBytes(6), (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
-
-const clean = (value, max) =>
-  typeof value === 'string' ? value.normalize('NFKC').replace(/\s+/g, ' ').trim().slice(0, max) : '';
-const cleanPhone = (value) => clean(value, 20).replace(/[\s-]/g, '').replace(/^(\+91|0)/, '');
-
-const NAME_RE = /^\p{L}[\p{L} .'-]{1,59}$/u;
-const ROLL_RE = /^[A-Z0-9][A-Z0-9/-]{2,19}$/;
-const PHONE_RE = /^[6-9]\d{9}$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-export const UTR_RE = /^\d{12}$/;
 const NOT_LISTED = 'This roll number is not in the 1st year student list. Check it, or contact the coordinator.';
 
 // ---------------------------------------------------------------------------

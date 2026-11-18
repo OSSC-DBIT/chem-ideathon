@@ -55,6 +55,48 @@ Warnings that can appear at the top:
   transaction ID, so they can register again.
 - **Delete** removes the registration and its screenshot for good.
 
+### Editing a team
+
+Open a pending or approved registration and press **Edit team**.
+
+| You want to | Do this |
+| --- | --- |
+| Remove a member | **Remove** on that member's card |
+| Add a member | **Add a member**, then type the roll number. Name, branch and phone fill in from the student list. |
+| Change the leader | **Make leader** on the member who should lead. They move to the top. The leader needs a phone number. |
+| Fix a phone number, the team name, the leader's email or the transaction ID | Change the field |
+| Fix the spelling of a name | Names that come from the student list are locked here. Correct the student under **Student list**, and every team they are in is updated. |
+| Leave a note for other organisers | The Note field, for example how the team paid |
+
+Nothing is saved until you press **Save changes**, and the team is not emailed about edits.
+
+What the editor checks:
+
+- A student who is already in another team cannot be added. The message names the team, so you can
+  remove them there first.
+- With the student list on, a roll number that is not on the list is refused. Add the student first.
+- A team size outside the event's range, or an event that is already full, shows a **Save anyway?**
+  question instead of blocking you. You decide.
+- The amount follows the team size. If it changes, you are told the old and new amount so you can
+  settle the difference with the team. The status (pending or approved) is not changed.
+
+A **rejected** registration cannot be edited; add the team by hand instead.
+
+### Adding a registration by hand
+
+**Add a registration by hand**, at the top of the Registrations tab, is for a team that paid in cash,
+a late entry you have agreed to, or redoing a rejected registration.
+
+1. Choose the event and type the team name.
+2. Type the leader's roll number and phone, then add the other members.
+3. Enter the UPI transaction ID if there is one, or leave it empty and write how they paid in the Note.
+4. Choose **Approved** if you have the money, or **Pending** to verify later.
+
+This skips the captcha, the email code and the screenshot, because you are vouching for the team. The
+rule of one student per event still applies. The registration is marked "added by an organiser" in the
+list and in exports, the activity log records who added it, and an approved team gets the usual
+confirmation email.
+
 ### Exports
 
 Exports follow the current search and filters.
@@ -129,6 +171,17 @@ One student per row, the first row being the column headings. Excel (.xlsx) or C
 - **Replace the whole list** swaps the list. **Add to the list and update existing** keeps what is
   there and updates matching roll numbers. Neither changes existing registrations.
 
+### Correcting one student
+
+After a bulk upload you do not need to upload the file again to fix one row.
+
+- **Edit** on a student's row changes the name, branch, phone or email. A corrected name or branch is
+  also updated in every registration that student is in, so attendance sheets come out right. A new
+  email also becomes the contact email of a team that student leads.
+- **Add one student** adds a single student who was missing from the file.
+- **Remove** takes a student off the list. It does not touch a registration they are already in.
+- The roll number itself cannot be changed. Remove the student and add them again with the right one.
+
 ### The three switches
 
 | Switch | Effect |
@@ -167,7 +220,9 @@ the account that did it and the time. Use it when you need to know who approved 
 | --- | --- |
 | A student says someone else registered with their roll number | Search the roll number under Registrations. Reject or delete that registration. The student can then register. |
 | A team typed the wrong transaction ID | Reject with that reason. They register again with the right ID. |
-| A team wants to change a member | Reject (or delete) their registration and ask them to register again. Details cannot be edited. |
+| A team wants to change a member | Open the registration, **Edit team**, remove the old member and add the new one. |
+| A team paid in cash | **Add a registration by hand**, leave the transaction ID empty, and write a Note. |
+| A name is misspelt on the list | Student list, **Edit** on that student. Their teams are updated too. |
 | A team paid the wrong amount | Reject with the reason, and settle the refund outside the site. |
 | An event needs more slots | Events, Edit, raise the maximum. |
 | You need to stop registrations right now | Overview, Close now. |

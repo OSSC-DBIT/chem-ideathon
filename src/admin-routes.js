@@ -7,6 +7,7 @@ import {
   requireOwner, isOwner, OWNER, MIN_PASSWORD, listOrganisers, addOrganiser, removeOrganiser, changeOwnPassword,
 } from './security.js';
 import { statementRows, matchStatement } from './reconcile.js';
+import { router as teamRoutes } from './admin-teams.js';
 import { openFile, encryptionOn } from './vault.js';
 import { buildTable, toCsv, toXlsx } from './export.js';
 import { mailConfigured, mailInfo, mailsSentToday, sendMail, sendMailLater, messages, MailError, checkMailServer } from './mailer.js';
@@ -59,6 +60,9 @@ router.use(requireAdmin);
 const smallJson = express.json({ limit: '100kb' });
 router.use((req, res, next) => (req.path === '/reconcile' ? next() : smallJson(req, res, next))); // reconcile takes bigger uploads
 
+// Adding a registration by hand, editing a team, and single student edits.
+router.use(teamRoutes);
+
 // ---------------------------------------------------------------------------
 // Registrations
 // ---------------------------------------------------------------------------
@@ -85,6 +89,9 @@ function regToJson(row) {
     decidedAt: row.decided_at,
     createdAt: row.created_at,
     scanStatus: row.scan_status,
+    source: row.source,
+    note: row.note,
+    hasScreenshot: !!row.screenshot,
     members: membersOf.all(row.id),
   };
 }
@@ -119,6 +126,7 @@ router.get('/registrations', (req, res) => {
 
 router.get('/registrations/:id/screenshot', (req, res) => {
   const row = getReg.get(int(req.params.id, 1, 1e9, 0));
+  if (row && !row.screenshot) return res.status(404).json({ error: 'This registration has no screenshot. It was added by an organiser.' });
   if (!row || !/^[a-f0-9]{32}\.(jpg|png|webp)$/.test(row.screenshot)) return res.status(404).json({ error: 'Not found.' });
   const file = path.join(UPLOAD_DIR, row.screenshot);
   if (!fs.existsSync(file)) return res.status(404).json({ error: 'Screenshot file is missing.' });
@@ -238,7 +246,7 @@ router.get('/export', async (req, res, next) => {
 // ---------------------------------------------------------------------------
 const pendingRegs = db.prepare(`
   SELECT r.id, r.code, r.team_name, r.utr, r.amount, e.title AS event_title
-  FROM registrations r JOIN events e ON e.id = r.event_id WHERE r.status = 'pending' ORDER BY r.id
+  FROM registrations r JOIN events e ON e.id = r.event_id WHERE r.status = 'pending' AND r.utr != '' ORDER BY r.id
 `);
 
 router.post('/reconcile', express.json({ limit: Math.ceil(MAX_STATEMENT_BYTES * 1.4) + 200 * 1024 }), async (req, res, next) => {

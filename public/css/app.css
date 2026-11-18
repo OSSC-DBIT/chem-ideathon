@@ -535,3 +535,19 @@ input.locked:focus { box-shadow: none; background: #f1ecd6; }
 
 /* Keeps visually hidden labels inside a scrolling table from widening the page. */
 .table-scroll { position: relative; }
+
+/* ---------- Admin: team editor ---------- */
+dialog.editor { width: min(96vw, 1000px); }
+.ed-title { margin: 22px 0 6px; font-size: 1.05rem; }
+.ed-members { display: grid; gap: 12px; margin-top: 12px; }
+.ed-member { border: var(--bw) solid var(--ink); border-radius: 12px; padding: 12px 14px; background: #fffdf2; }
+.ed-member.lead { background: #fff3a8; }
+.ed-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.ed-head strong { font-family: var(--display); font-weight: 400; text-transform: uppercase; }
+.ed-fields { display: grid; grid-template-columns: 1fr 1.5fr 1fr 1fr; gap: 10px 12px; }
+.ed-fields > * { min-width: 0; }
+@media (max-width: 860px) { .ed-fields { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) { .ed-fields { grid-template-columns: minmax(0, 1fr); } }
+.ed-summary { margin: 16px 0 0; padding: 10px 14px; border: var(--bw) solid var(--ink); border-radius: 10px; background: var(--green); font-weight: 600; }
+.ed-summary.warn { background: var(--orange); }
+.ed-open { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 2px solid var(--ink); }

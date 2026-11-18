@@ -19,11 +19,13 @@ export function buildTable(regs, layout) {
   const columns = [
     'Reg ID', 'Event', 'Team', 'Members', 'Leader name', 'Leader roll number', 'Leader phone', 'Leader email',
     'All members', 'Amount (Rs)', 'Transaction ID', 'Status', 'Reject reason', 'Registered at', 'Decided at', 'Decided by',
+    'Added by', 'Note',
   ];
   const rows = regs.map((r) => [
     r.code, r.eventTitle, r.teamName, r.memberCount, r.members[0]?.name || '', r.members[0]?.roll || '',
     r.leaderPhone, r.leaderEmail, r.members.map((m) => `${m.name} (${m.roll}, ${m.branch})`).join('; '),
     r.amount, r.utr, r.status, r.rejectReason, ist(r.createdAt), ist(r.decidedAt), r.decidedBy || '',
+    r.source === 'admin' ? 'Organiser' : 'Student', r.note || '',
   ]);
   return { columns, rows };
 }

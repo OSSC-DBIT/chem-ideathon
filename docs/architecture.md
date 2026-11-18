@@ -49,6 +49,8 @@ src/
   security.js             Owner and organiser accounts, sessions, CSRF, headers, rate limiter
   public-routes.js        What students use: info, QR, captcha, roll check, email code, register, status
   admin-routes.js         What organisers use: registrations, exports, statements, events, students, settings
+  admin-teams.js          Adding a registration by hand, editing a team, editing one student
+  rules.js                Input rules shared by the public form and the admin panel
   uploads.js              Upload limits, image re-encoding, virus scanning
   captcha.js              Self hosted image captcha
   roster.js               Student list import and lookup, name and email masking
@@ -73,7 +75,7 @@ SQLite), `sharp` (images), `exceljs` (Excel read and write), `nodemailer` (email
 | --- | --- | --- |
 | `settings` | Key and JSON value pairs | Everything set in the admin panel |
 | `events` | Title, description, team or solo, min and max size, limit, fee, open, order, archived | Removed events with registrations are archived, not deleted |
-| `registrations` | Code, event, team name, leader email and phone, member count, amount, transaction ID, screenshot file name, status, reject reason, who decided and when, scan status | Status is `pending`, `approved` or `rejected` |
+| `registrations` | Code, event, team name, leader email and phone, member count, amount, transaction ID, screenshot file name, status, reject reason, who decided and when, scan status, source (student or organiser), note | Status is `pending`, `approved` or `rejected` |
 | `members` | Registration, position, name, roll number, branch, phone | Position 0 is the leader. Deleted with the registration. |
 | `students` | Roll number, name, branch, phone, email | The uploaded student list |
 | `organisers` | Username, salt, password hash, when and by whom created | The owner account is not here; it lives in `.env` |
@@ -140,5 +142,6 @@ a submission that can succeed:
 ## What is deliberately missing
 
 - Online payment. Students pay by UPI and organisers verify against the bank statement.
-- Editing a registration. A wrong one is rejected and made again, which keeps the payment check honest.
+- Students editing a registration. A wrong one is rejected and made again, or an organiser edits the
+  team in the admin panel, where every change is logged.
 - Student accounts. A registration ID plus the leader's phone number is enough to check a status.

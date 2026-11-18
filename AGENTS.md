@@ -31,6 +31,8 @@ src/vault.js            Keys derived from DATA_KEY; sealing and opening files on
 src/security.js         Owner and organiser accounts, sessions, CSRF, security headers, rate limiter
 src/public-routes.js    /api/public, /qr, /captcha, /precheck, /verify/*, /register, /status
 src/admin-routes.js     /api/admin/*: registrations, exports, statement matching, events, students, settings
+src/admin-teams.js      /api/admin/*: add a registration by hand, edit a team, add or edit one student
+src/rules.js            Input rules (roll, phone, email, transaction ID) shared by the public and admin code
 src/uploads.js          Upload limits, image re-encoding (sharp), ClamAV scan
 src/captcha.js          Self hosted image captcha
 src/roster.js           Student list import (xlsx, csv) and lookup
@@ -73,6 +75,9 @@ nginx/default.conf      Reverse proxy and rate limits
 12. **The public roll number lookup returns masked names and emails** (`maskName`, `maskEmail`). Full
     values go to signed in admins only.
 13. **Account management is owner only** (`requireOwner`). Organisers can do everything else.
+14. **Admin edits follow the same clash rules as students.** An organiser may override team size and
+    event capacity after confirming (`override: true`), never the one student per event rule. Every
+    edit is written to the activity log with what changed.
 
 ## Conventions
 
