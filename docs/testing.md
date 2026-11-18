@@ -7,12 +7,13 @@ npm install
 npm test
 ```
 
-`npm test` runs two scripts, each against a throwaway data folder. It needs bash and curl (Git Bash
-works on Windows) and takes about two minutes.
+`npm test` runs three scripts. The two that start the server each use a throwaway data folder. It
+needs bash and curl (Git Bash works on Windows) and takes about two minutes.
 
 | Script | Checks | What it covers |
 | --- | --- | --- |
-| `scripts/smoke-test.sh` | about 130 | The whole API with encryption on: registration rules, captcha, uploads, admin sign in and CSRF, statement matching, exports, events, schedule, student list, email verification, organiser accounts |
+| `scripts/check-config.mjs` | 1 | Every setting the code reads is passed in by `docker-compose.yml`, listed in `.env.example` and described in `docs/configuration.md` |
+| `scripts/smoke-test.sh` | about 170 | The whole API with encryption on: registration rules, captcha, uploads, admin sign in and CSRF, statement matching, exports, events, schedule, student list, email verification, organiser accounts, adding and editing teams by hand, editing single students |
 | `scripts/encryption-test.sh` | 24 | Encryption across restarts: converting a plain database, encrypted files on disk, refusing a wrong or missing key, changing the key |
 
 Each line of output is `ok` or `FAIL` with what was wanted and what came back. The exit code is the

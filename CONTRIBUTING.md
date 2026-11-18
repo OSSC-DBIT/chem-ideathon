@@ -36,8 +36,8 @@ Data lives in `./data` (SQLite database and uploads). Delete the folder to start
 
 ## Before you open a pull request
 
-1. Run the tests: `npm test`. This starts the server on a temporary database and runs about 150
-   end to end checks with `curl`, including the encryption tests. It needs bash (Git Bash works on Windows).
+1. Run the tests: `npm test`. This starts the server on a temporary database and runs about 200
+   end to end checks with `curl`, including the encryption tests and a check that the settings files agree. It needs bash (Git Bash works on Windows).
 2. If you changed the page or the admin panel, open it in a browser at phone width (around 360 px)
    and at desktop width, and click through what you changed.
 3. If you changed `Dockerfile`, `docker-compose.yml` or `nginx/`, run `docker compose up -d --build`
@@ -68,6 +68,9 @@ These keep the site safe and simple. Pull requests that break them will be asked
 - **New dependencies need a reason.** The app has six. Ask in the issue first. Install scripts are
   switched off, so a native module must ship prebuilt binaries.
 - **A new rule or endpoint comes with a check** in `scripts/smoke-test.sh`.
+- **A new setting goes in four places**: the code, `docker-compose.yml`, `.env.example` and
+  `docs/configuration.md`. The tests fail if one is missed.
+- **A change in behaviour updates the docs** under `docs/` in the same pull request.
 - **Error messages are for students.** Say what went wrong and what to do next, in plain words.
 - **Never commit real data**: no `.env`, no database, no student lists, no payment screenshots,
   and no real names or roll numbers in tests, issues or screenshots.

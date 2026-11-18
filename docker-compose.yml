@@ -25,6 +25,10 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-}
       MAIL_FROM: ${MAIL_FROM:-}
       MAIL_DAILY_LIMIT: ${MAIL_DAILY_LIMIT:-400}
+      # Rate limits per visitor address. Empty means the built in default.
+      API_RATE_LIMIT: ${API_RATE_LIMIT:-}
+      REGISTER_RATE_LIMIT: ${REGISTER_RATE_LIMIT:-}
+      VERIFY_SEND_RATE_LIMIT: ${VERIFY_SEND_RATE_LIMIT:-}
       TRUST_PROXY: "1"
       TZ: Asia/Kolkata
     # When the mail server (or a cloudflared tunnel to it) runs on this machine, SMTP_ON_THIS_HOST is the

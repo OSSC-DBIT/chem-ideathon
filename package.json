@@ -17,7 +17,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "bash scripts/smoke-test.sh && bash scripts/encryption-test.sh"
+    "test": "node scripts/check-config.mjs && bash scripts/smoke-test.sh && bash scripts/encryption-test.sh"
   },
   "engines": {
     "node": ">=22.13"

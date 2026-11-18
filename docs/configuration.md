@@ -8,6 +8,10 @@ There are two places where the site is configured.
 
 After changing `.env`, apply it with `docker compose up -d` (a plain `restart` does not re-read the file).
 
+`.env.example` lists every setting below, in the same groups. `npm test` checks that the code,
+`docker-compose.yml`, `.env.example` and this page agree, so a setting cannot be added to one and
+forgotten in the others.
+
 ## Required
 
 | Variable | What it is |
@@ -73,8 +77,8 @@ nothing is sent. Passwords never travel unencrypted.
 | `MAX_STATEMENT_MB` | `5` | Largest bank statement or student list file |
 | `SCAN_REQUIRED` | `false` | `false`: when the scanner is unavailable, uploads are still accepted, cleaned, and marked "not virus scanned". `true`: uploads are refused until the scanner is back. |
 
-`CLAMAV_HOST` is set to `clamav` by Docker Compose. To run without the virus scanner, remove the
-`clamav` service and that line from `docker-compose.yml`.
+`CLAMAV_HOST` is set to `clamav` by Docker Compose (`CLAMAV_PORT` defaults to 3310). To run without the
+virus scanner, remove the `clamav` service and the `CLAMAV_HOST` line from `docker-compose.yml`.
 
 ## Rate limits
 
