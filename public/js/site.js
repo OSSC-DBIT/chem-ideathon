@@ -18,6 +18,7 @@
   let captchaId = '';     // id of the captcha image currently shown
   let liveKeys = [];      // fields currently flagged by the live "already registered" check
   let liveSeq = 0;
+  let repeatedKeys = [];  // roll fields currently flagged as repeated within the team
   let emailFromList = false; // the leader's email is supplied by the student list
   let verifyToken = '';      // proof from the server that the leader's email was verified
   let verifiedFor = '';      // which leader + email that proof belongs to
@@ -180,8 +181,21 @@
       input.classList.add('locked');
     }
     input.value = members[i][key];
-    input.addEventListener('input', () => { members[i][key] = input.value; saveDraft(); });
-    if (key === 'roll') input.addEventListener('change', liveCheck);
+    input.addEventListener('input', () => {
+      members[i][key] = input.value;
+      saveDraft();
+      setFieldError(id, ''); // the old message no longer describes what is typed
+      if (key === 'roll') markRepeatedRolls();
+    });
+    if (key === 'roll') {
+      input.addEventListener('change', () => {
+        // Show the roll number the way it will be stored: capitals, no spaces.
+        members[i].roll = tidyRoll(input.value);
+        input.value = members[i].roll;
+        markRepeatedRolls();
+        liveCheck();
+      });
+    }
     const err = el('p', { className: 'err' });
     err.dataset.err = id;
     return el('div', { className: 'field' }, el('label', { htmlFor: id }, ...[label].flat()), input, err);
@@ -216,9 +230,33 @@
     const add = $('#add-member');
     add.hidden = solo;
     add.disabled = members.length >= event.maxMembers;
+    repeatedKeys = []; // the rows were rebuilt, so their messages are gone
+    markRepeatedRolls();
     add.textContent = members.length >= event.maxMembers ? `Team is full (${event.maxMembers})` : `Add member (${members.length} of ${event.maxMembers})`;
     $('#total-calc').textContent = `${members.length} x ${rupees(event.fee)} =`;
     $('#total').textContent = rupees(members.length * event.fee);
+  }
+
+  const tidyRoll = (value) => String(value || '').trim().toUpperCase().replace(/\s/g, '');
+
+  /**
+   * Flags a roll number that is already used by an earlier member of this same team, the moment it
+   * is typed, and clears the flag the moment it is fixed. Returns true when there are none.
+   */
+  function markRepeatedRolls() {
+    const firstUse = new Map();
+    const found = [];
+    members.forEach((m, i) => {
+      const roll = tidyRoll(m.roll);
+      if (!roll) return;
+      if (firstUse.has(roll)) found.push([`m${i}-roll`, firstUse.get(roll)]);
+      else firstUse.set(roll, i);
+    });
+    repeatedKeys.filter((key) => !found.some(([k]) => k === key)).forEach((key) => setFieldError(key, ''));
+    found.forEach(([key, other]) => setFieldError(key,
+      `This is the same roll number as ${other === 0 ? 'the team leader' : `member ${other + 1}`}. Each member needs their own roll number.`));
+    repeatedKeys = found.map(([key]) => key);
+    return found.length === 0;
   }
 
   // Runs when a roll number or the team name changes: flags anyone who is already registered,
@@ -240,6 +278,7 @@
     liveKeys.filter((key) => !(key in fields)).forEach((key) => setFieldError(key, ''));
     liveKeys = Object.keys(fields).filter((key) => key === 'teamName' || /^m\d+-roll$/.test(key));
     liveKeys.forEach((key) => setFieldError(key, fields[key]));
+    markRepeatedRolls();
   }
   $('#teamName').addEventListener('change', liveCheck);
 
@@ -574,7 +613,7 @@
         const phone = m.phone.replace(/[\s-]/g, '').replace(/^(\+91|0)/, '');
         if (m.name.trim().length < 2 && !info.rosterRequired) errors[`m${i}-name`] = 'Enter the full name.';
         if (!/^[A-Z0-9][A-Z0-9/-]{2,19}$/.test(roll)) errors[`m${i}-roll`] = 'Enter a valid roll number.';
-        else if (rolls.has(roll)) errors[`m${i}-roll`] = 'This roll number is repeated in your team.';
+        else if (rolls.has(roll)) errors[`m${i}-roll`] = 'This roll number is repeated in your team. Each member needs their own roll number.';
         rolls.add(roll);
         if (!m.branch && !info.rosterRequired) errors[`m${i}-branch`] = 'Select a branch.';
         if ((i === 0 || phone) && !/^[6-9]\d{9}$/.test(phone)) errors[`m${i}-phone`] = 'Enter a valid 10 digit mobile number.';
@@ -616,6 +655,12 @@
     }
     if (scroll) $('#register').scrollIntoView();
   }
+
+  // Typing in a field clears the message under it (member fields handle this themselves).
+  wizard.addEventListener('input', (e) => {
+    const id = e.target.id;
+    if (id && !/^m\d+-/.test(id) && id !== 'screenshot') setFieldError(id, '');
+  });
 
   $('#next').addEventListener('click', async () => {
     clearErrors();

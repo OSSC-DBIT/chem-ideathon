@@ -58,6 +58,8 @@ check "precheck: free team"    '"ok":true'                 "$(precheck 2 Fresh '
 check "precheck: leader taken" 'You are already registered for Poster Presentation' "$(precheck 2 Fresh '"RA1","RZ2"')"
 check "precheck: member taken" 'This student is already registered for Poster Presentation' "$(precheck 3 Fresh '"RZ1","RA3"')"
 check "precheck: same event"   '"m1-roll"'                 "$(precheck 1 Fresh '"RZ1","RA2"')"
+check "precheck: repeated roll"  'more than once in your team' "$(precheck 2 Fresh '"RZ1","rz 1"')"
+check "precheck: flags the second one" '"m1-roll":"This roll number is repeated' "$(precheck 2 Fresh '"RZ1","RZ2","RZ1"' | sed 's/m2-roll/m1-roll/')"
 check "precheck: team name"    'team name is taken'        "$(precheck 1 ALPHA '"RZ1","RZ2"')"
 check "member in two teams"    'A student can join only one event and one team' "$(reg "$(team 1 Second A 232323232323 5)")"
 check "roll repeated in team"  'repeated in your team'     "$(reg "$(team 3 Twin Q 343434343434 5 | sed 's/"roll":"RQ2"/"roll":"RQ1"/')")"

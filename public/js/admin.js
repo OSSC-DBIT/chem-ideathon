@@ -357,6 +357,24 @@
       summary.classList.toggle('warn', outside);
     }
 
+    // Flags a roll number that an earlier member of this team already has, as soon as it is typed.
+    // With an index, returns whether that row is free of the problem.
+    let repeatedRows = [];
+    function markRepeated(index) {
+      const firstUse = new Map();
+      const found = [];
+      members.forEach((m, i) => {
+        const roll = m.roll.trim().toUpperCase().replace(/\s/g, '');
+        if (!roll) return;
+        if (firstUse.has(roll)) found.push([i, firstUse.get(roll)]);
+        else firstUse.set(roll, i);
+      });
+      repeatedRows.filter((i) => !found.some(([row]) => row === i)).forEach((i) => setError(`m${i}-roll`, ''));
+      found.forEach(([i, other]) => setError(`m${i}-roll`, `Same roll number as ${other === 0 ? 'the leader' : `member ${other + 1}`}.`));
+      repeatedRows = found.map(([i]) => i);
+      return index === undefined ? found.length === 0 : !repeatedRows.includes(index);
+    }
+
     // Fills in the name, branch and phone from the student list when the roll number is on it.
     async function lookup(i) {
       const m = members[i];
@@ -385,8 +403,19 @@
         const field = (key, label, props = {}) => {
           const input = el('input', { id: `ed-m${i}-${key}`, type: 'text', value: m[key], ...props });
           if (m.listed && (key === 'name' || key === 'branch')) { input.readOnly = true; input.classList.add('locked'); input.title = 'From the student list. Edit the student to change it.'; }
-          input.addEventListener('input', () => { m[key] = input.value; });
-          if (key === 'roll') input.addEventListener('change', () => { m.listed = false; lookup(i); });
+          input.addEventListener('input', () => {
+            m[key] = input.value;
+            setError(`m${i}-${key}`, ''); // the old message no longer describes what is typed
+            if (key === 'roll') markRepeated();
+          });
+          if (key === 'roll') {
+            input.addEventListener('change', () => {
+              m.roll = input.value.trim().toUpperCase().replace(/\s/g, '');
+              input.value = m.roll;
+              m.listed = false;
+              if (markRepeated(i)) lookup(i); // do not fill in details for a repeated roll number
+            });
+          }
           return el('div', { className: 'field' }, el('label', { htmlFor: input.id }, label), input, el('p', { className: 'err', dataset: { err: `m${i}-${key}` } }));
         };
         return el('div', { className: `ed-member ${i === 0 ? 'lead' : ''}` },
@@ -401,6 +430,8 @@
             field('branch', 'Branch', { maxLength: 40, autocomplete: 'off' }),
             field('phone', i === 0 ? 'Phone' : 'Phone (optional)', { maxLength: 14, inputMode: 'numeric', autocomplete: 'off' })));
       }));
+      repeatedRows = [];
+      markRepeated();
       refreshSummary();
     }
 

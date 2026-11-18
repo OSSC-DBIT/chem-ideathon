@@ -385,12 +385,21 @@ router.post(
     const rolls = (Array.isArray(req.body?.rolls) ? req.body.rolls.slice(0, 50) : [])
       .map((r) => clean(r, 20).toUpperCase().replace(/\s/g, ''))
       .map((r) => (ROLL_RE.test(r) ? r : ''));
+    // The same roll number entered for two members of this team.
+    const repeated = {};
+    const seenRolls = new Set();
+    rolls.forEach((roll, i) => {
+      if (!roll) return;
+      if (seenRolls.has(roll)) repeated[`m${i}-roll`] = 'This roll number is repeated in your team. Each member needs their own roll number.';
+      seenRolls.add(roll);
+    });
+
     // With the student list on: report unknown roll numbers and send back the names to fill in.
     let students = null;
     const unknown = {};
     if (settings.rosterRequired) {
       students = rolls.map((roll, i) => {
-        if (!roll) return null;
+        if (!roll || repeated[`m${i}-roll`]) return null; // a repeated row gets no name, so it cannot look accepted
         const s = getStudent(roll);
         if (!s) { unknown[`m${i}-roll`] = NOT_LISTED; return null; }
         // Only a masked email goes back to the browser, and only for the leader's own row.
@@ -400,11 +409,13 @@ router.post(
       });
     }
     const conflict = findConflict(event, settings, clean(req.body?.teamName, 40), rolls);
-    const fields = { ...(conflict?.fields || {}), ...unknown };
+    const fields = { ...(conflict?.fields || {}), ...unknown, ...repeated };
     if (Object.keys(fields).length) {
-      const error = Object.keys(unknown).length
-        ? 'One or more roll numbers are not in the 1st year student list.'
-        : conflict.message;
+      const error = Object.keys(repeated).length
+        ? 'The same roll number is entered more than once in your team.'
+        : Object.keys(unknown).length
+          ? 'One or more roll numbers are not in the 1st year student list.'
+          : conflict.message;
       return res.status(409).json({ error, fields, students });
     }
     res.json({ ok: true, students });
