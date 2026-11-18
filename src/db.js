@@ -194,6 +194,8 @@ addColumn('registrations', 'scan_status', "TEXT NOT NULL DEFAULT 'unscanned'"); 
 addColumn('students', 'email', "TEXT NOT NULL DEFAULT ''");
 addColumn('registrations', 'source', "TEXT NOT NULL DEFAULT 'online'"); // online | admin (added by an organiser)
 addColumn('registrations', 'note', "TEXT NOT NULL DEFAULT ''");          // organiser's note, for example how a team paid
+addColumn('members', 'section', "TEXT NOT NULL DEFAULT ''");             // class section, for example A or B
+addColumn('students', 'section', "TEXT NOT NULL DEFAULT ''");
 
 // ---------------------------------------------------------------------------
 // Settings: a small key/value store, edited from the admin panel.
@@ -209,6 +211,7 @@ const DEFAULT_SETTINGS = {
   upiName: (process.env.UPI_NAME || 'Ideathon 26').trim(),
   notice: '',
   branches: ['CSE', 'ISE', 'ECE', 'EEE', 'AI & ML', 'AI & DS', 'Mechanical', 'Civil'],
+  sections: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],   // the sections students can pick from
   contactName: 'Prof Chinmayi G',
   contactPhone: '',
   allowMultiEvent: false,     // default rule: one student, one event

@@ -33,7 +33,7 @@
     !ev.teamBased ? 'Solo' : ev.minMembers === ev.maxMembers ? `Team of ${ev.minMembers}` : `Team of ${ev.minMembers} to ${ev.maxMembers}`;
   const slotsLeft = (ev) => (ev.maxTeams > 0 ? Math.max(ev.maxTeams - ev.taken, 0) : null);
   const canRegister = (ev) => ev.isOpen && !ev.full;
-  const blank = () => ({ name: '', roll: '', branch: '', phone: '' });
+  const blank = () => ({ name: '', roll: '', branch: '', section: '', phone: '', sectionFromList: false });
 
   // -------------------------------------------------------------------------
   // Page content
@@ -59,7 +59,7 @@
     $('#t-again').textContent = multi ? 'Register for another event' : 'Register another team';
     $('#how-team').textContent = info.emailVerification
       ? 'The team leader adds every member by roll number, then confirms their email with a code we send.'
-      : "The team leader fills in every member's name and roll number.";
+      : "The team leader fills in every member's name, roll number and section.";
     const titles = info.events.map((ev) => ev.title);
     const run = [...titles, ...titles, ...titles, ...titles];
     $('#marquee').replaceChildren(...[...run, ...run].map((t) => el('span', {}, t)));
@@ -171,6 +171,11 @@
     const locked = info.rosterRequired && (key === 'name' || key === 'branch');
     if (key === 'branch' && !info.rosterRequired) {
       input = el('select', { id }, el('option', { value: '' }, 'Select'), ...info.branches.map((b) => el('option', { value: b }, b)));
+    } else if (key === 'section') {
+      const options = [...info.sections];
+      if (members[i].section && !options.includes(members[i].section)) options.push(members[i].section);
+      input = el('select', { id }, el('option', { value: '' }, 'Select'), ...options.map((s) => el('option', { value: s }, s)));
+      if (members[i].sectionFromList) { input.disabled = true; input.classList.add('locked'); }
     } else {
       input = el('input', { id, type: 'text', ...props });
     }
@@ -223,6 +228,7 @@
           memberField(i, 'roll', 'Roll number', { maxLength: 20, autocapitalize: 'characters', autocomplete: 'off' }),
           memberField(i, 'name', 'Full name', { maxLength: 60, autocomplete: i === 0 ? 'name' : 'off' }),
           memberField(i, 'branch', 'Branch'),
+          memberField(i, 'section', 'Section'),
           memberField(i, 'phone', i === 0 ? 'Phone' : ['Phone ', el('span', { className: 'opt' }, '(optional)')],
             { type: 'tel', inputMode: 'numeric', maxLength: 14, autocomplete: i === 0 ? 'tel-national' : 'off', placeholder: '10 digit number' })));
     }));
@@ -282,6 +288,25 @@
   }
   $('#teamName').addEventListener('change', liveCheck);
 
+  // A section from the student list is shown and locked; without one the student picks it.
+  function setSection(i, fromList) {
+    const m = members[i];
+    const select = $(`#m${i}-section`);
+    if (fromList) {
+      m.section = fromList;
+      m.sectionFromList = true;
+    } else if (m.sectionFromList) {
+      m.section = ''; // it belonged to the previous roll number
+      m.sectionFromList = false;
+    }
+    if (!select) return;
+    if (m.section && ![...select.options].some((o) => o.value === m.section)) select.append(el('option', { value: m.section }, m.section));
+    select.value = m.section;
+    select.disabled = m.sectionFromList;
+    select.classList.toggle('locked', m.sectionFromList);
+    if (m.section) setFieldError(`m${i}-section`, '');
+  }
+
   // With the student list on, the server tells us who each roll number belongs to.
   function applyStudents(students) {
     if (!info.rosterRequired || !Array.isArray(students)) return;
@@ -306,6 +331,7 @@
       if (!members[i]) return;
       members[i].name = student?.name || '';
       members[i].branch = student?.branch || '';
+      setSection(i, student?.section || '');
       const name = $(`#m${i}-name`);
       const branch = $(`#m${i}-branch`);
       if (name) name.value = members[i].name;
@@ -559,7 +585,7 @@
       ...row('Event', event.title),
       ...(event.teamBased ? row('Team', $('#teamName').value.trim()) : []),
       ...row(event.teamBased ? 'Members' : 'Participant',
-        el('ol', {}, ...members.map((m) => el('li', {}, `${m.name.trim()} (${m.roll.trim().toUpperCase()}, ${m.branch})`)))),
+        el('ol', {}, ...members.map((m) => el('li', {}, `${m.name.trim()} (${[m.roll.trim().toUpperCase(), m.branch, m.section && `Section ${m.section}`].filter(Boolean).join(', ')})`)))),
       ...row('Contact', `${members[0].phone.trim()}, ${$('#email').value.trim()}`),
       ...row('Amount paid', rupees(members.length * event.fee)),
       ...row('Transaction ID', $('#utr').value.trim()),
@@ -616,6 +642,7 @@
         else if (rolls.has(roll)) errors[`m${i}-roll`] = 'This roll number is repeated in your team. Each member needs their own roll number.';
         rolls.add(roll);
         if (!m.branch && !info.rosterRequired) errors[`m${i}-branch`] = 'Select a branch.';
+        if (!m.section) errors[`m${i}-section`] = 'Select the section.';
         if ((i === 0 || phone) && !/^[6-9]\d{9}$/.test(phone)) errors[`m${i}-phone`] = 'Enter a valid 10 digit mobile number.';
       });
     }
@@ -806,6 +833,7 @@
       members = draft.members.slice(0, 50).map((m) => ({
         name: String(m?.name || ''), roll: String(m?.roll || ''), phone: String(m?.phone || ''),
         branch: info.branches.includes(m?.branch) ? m.branch : '',
+        section: info.sections.includes(m?.section) ? m.section : '', sectionFromList: false,
       }));
     }
     const ev = info.events.find((e) => e.id === draft.eventId);

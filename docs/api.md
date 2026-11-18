@@ -32,7 +32,7 @@ promises; it is documented for people working on the code.
 
 ### `GET /api/public`
 
-Everything the page needs: event name and date, notice, branch list, contact, whether the student
+Everything the page needs: event name and date, notice, branch list, section list, contact, whether the student
 list, email verification and multi event are on, the upload limit, the registration window
 (`open`, `upcoming` or `closed`, with times), and the events with `taken` and `full`.
 
@@ -57,7 +57,7 @@ Checks a team before payment. No captcha needed.
 - `409` with `fields` for a taken team name, a roll number already registered, a roll number not on
   the student list, or a full event.
 - `students` is present when the student list is on: one entry per roll number, `null` for unknown
-  ones, otherwise `{ "name": "As** Ra*", "branch": "CSE" }`. The first entry may carry a masked `email`.
+  ones, otherwise `{ "name": "As** Ra*", "branch": "CSE", "section": "A" }` (`section` is empty when the list has none). The first entry may carry a masked `email`.
 
 ### `POST /api/verify/send`
 
@@ -84,8 +84,8 @@ registration as `verifyToken`. Five wrong codes cancel the code.
   "teamName": "Noble Gases",
   "email": "leader@example.com",
   "members": [
-    { "name": "Asha Rao", "roll": "26CH001", "branch": "CSE", "phone": "9876500001" },
-    { "name": "Vikram N", "roll": "26CH002", "branch": "ECE", "phone": "" }
+    { "name": "Asha Rao", "roll": "26CH001", "branch": "CSE", "section": "A", "phone": "9876500001" },
+    { "name": "Vikram N", "roll": "26CH002", "branch": "ECE", "section": "B", "phone": "" }
   ],
   "utr": "123456789012",
   "screenshot": "data:image/jpeg;base64,...",
@@ -98,6 +98,8 @@ registration as `verifyToken`. Five wrong codes cancel the code.
 
 - The first member is the leader and must have a phone number.
 - With the student list on, `name`, `branch` and the leader's `email` are ignored and taken from the list.
+- `section` must be one of the sections in `/api/public`, unless the student list has a section for
+  that roll number, in which case the list's value is used.
 - Send `verifyToken` when email verification is on, otherwise `captchaId` and `captchaAnswer`.
 - `201` with `{ "code", "eventTitle", "teamName", "teamBased", "memberCount", "amount", "status" }`.
 - `200` with the same shape when the identical registration was already accepted (safe retry).
@@ -129,7 +131,7 @@ the `X-CSRF-Token` header with the value returned at sign in.
 
 | Method and path | Notes |
 | --- | --- |
-| `GET /registrations?q=&event=&status=` | List with members |
+| `GET /registrations?q=&event=&section=&status=` | List with members. `section` keeps teams with at least one member in that section. |
 | `GET /registrations/:id/screenshot` | The decrypted JPEG |
 | `POST /registrations/:id/decision` | `{ status: "approved" \| "rejected" \| "pending", reason }`; a reason is required to reject |
 | `POST /registrations` | Add a registration by hand. `{ eventId, teamName, leaderEmail, utr, note, status, members, override }`. No captcha, code or screenshot. |
@@ -180,6 +182,6 @@ statement `line`. Nothing is approved by this call.
 
 | Method and path | Notes |
 | --- | --- |
-| `GET /settings`, `PUT /settings` | Any subset of: `regMode`, `opensAt`, `closesAt`, `upiId`, `upiName`, `eventName`, `eventDate`, `venue`, `notice`, `contactName`, `contactPhone`, `allowMultiEvent`, `branches`, `rosterRequired`, `matchLeaderPhone`, `emailVerification` |
+| `GET /settings`, `PUT /settings` | Any subset of: `regMode`, `opensAt`, `closesAt`, `upiId`, `upiName`, `eventName`, `eventDate`, `venue`, `notice`, `contactName`, `contactPhone`, `allowMultiEvent`, `branches`, `sections`, `rosterRequired`, `matchLeaderPhone`, `emailVerification` |
 | `GET /overview` | Totals, event fill, scanner and encryption state, student list summary |
 | `GET /audit` | The last 300 activity log entries |

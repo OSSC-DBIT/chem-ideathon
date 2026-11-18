@@ -9,7 +9,7 @@ Built and maintained by [OSSC (OpenSource Students Club), DBIT](https://webuildn
 
 **For students (1st years only)**
 
-- Pick an event, add the team (leader plus members, each with name, roll number and branch), pay by UPI.
+- Pick an event, add the team (leader plus members, each with name, roll number, branch and section), pay by UPI.
 - The payment step shows a QR code with the exact amount (Rs. 50 x team size), then asks for the
   12 digit transaction ID and a payment screenshot.
 - Every registration gets an ID such as `IDT26-K7M2QX` and starts as "pending".

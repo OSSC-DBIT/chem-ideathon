@@ -76,8 +76,8 @@ SQLite), `sharp` (images), `exceljs` (Excel read and write), `nodemailer` (email
 | `settings` | Key and JSON value pairs | Everything set in the admin panel |
 | `events` | Title, description, team or solo, min and max size, limit, fee, open, order, archived | Removed events with registrations are archived, not deleted |
 | `registrations` | Code, event, team name, leader email and phone, member count, amount, transaction ID, screenshot file name, status, reject reason, who decided and when, scan status, source (student or organiser), note | Status is `pending`, `approved` or `rejected` |
-| `members` | Registration, position, name, roll number, branch, phone | Position 0 is the leader. Deleted with the registration. |
-| `students` | Roll number, name, branch, phone, email | The uploaded student list |
+| `members` | Registration, position, name, roll number, branch, section, phone | Position 0 is the leader. Deleted with the registration. |
+| `students` | Roll number, name, branch, section, phone, email | The uploaded student list |
 | `organisers` | Username, salt, password hash, when and by whom created | The owner account is not here; it lives in `.env` |
 | `admin_sessions` | Hash of the session token, CSRF token, username, expiry | |
 | `audit` | Time, account, action, detail | The activity log |

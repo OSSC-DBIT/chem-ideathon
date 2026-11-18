@@ -7,8 +7,8 @@ What the site protects, how, and what it does not protect. To report a problem, 
 
 | Data | Where | Encrypted on disk |
 | --- | --- | --- |
-| Registrations: team name, members' names, roll numbers, branch, leader's phone and email, transaction ID, status | Database | Yes |
-| Student list: roll number, name, branch, phone, email | Database | Yes |
+| Registrations: team name, members' names, roll numbers, branch, section, leader's phone and email, transaction ID, status | Database | Yes |
+| Student list: roll number, name, branch, section, phone, email | Database | Yes |
 | Organiser accounts: username and password hash | Database | Yes |
 | Settings, events, activity log, admin sessions | Database | Yes |
 | Payment screenshots | Files in `uploads/` | Yes |

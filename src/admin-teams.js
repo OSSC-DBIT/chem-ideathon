@@ -1,7 +1,7 @@
 import express from 'express';
 import { db, tx, audit, getSettings } from './db.js';
 import { clean, cleanPhone, cleanRoll, ROLL_RE, PHONE_RE, EMAIL_RE, UTR_RE, newCode } from './rules.js';
-import { getStudent, studentCount } from './roster.js';
+import { getStudent, studentCount, tidySection } from './roster.js';
 import { sendMailLater, messages } from './mailer.js';
 
 /*
@@ -28,7 +28,7 @@ const int = (value, min, max, fallback) => {
 
 const eventById = db.prepare('SELECT * FROM events WHERE id = ?');
 const regById = db.prepare('SELECT r.*, e.title AS event_title FROM registrations r JOIN events e ON e.id = r.event_id WHERE r.id = ?');
-const membersOf = db.prepare('SELECT name, roll, branch, phone FROM members WHERE registration_id = ? ORDER BY position');
+const membersOf = db.prepare('SELECT name, roll, branch, phone, section FROM members WHERE registration_id = ? ORDER BY position');
 const liveCount = db.prepare("SELECT COUNT(*) AS n FROM registrations WHERE event_id = ? AND status != 'rejected' AND id != ?");
 const nameClash = db.prepare("SELECT code FROM registrations WHERE event_id = ? AND status != 'rejected' AND id != ? AND team_name = ? COLLATE NOCASE");
 const utrClash = db.prepare("SELECT code, team_name FROM registrations WHERE utr = ? AND status != 'rejected' AND id != ?");
@@ -42,7 +42,7 @@ const rollClashInEvent = db.prepare(`
   JOIN registrations r ON r.id = m.registration_id JOIN events e ON e.id = r.event_id
   WHERE r.status != 'rejected' AND r.id != ? AND r.event_id = ? AND m.roll = ?
 `);
-const insertMember = db.prepare('INSERT INTO members (registration_id, position, name, roll, branch, phone) VALUES (?, ?, ?, ?, ?, ?)');
+const insertMember = db.prepare('INSERT INTO members (registration_id, position, name, roll, branch, phone, section) VALUES (?, ?, ?, ?, ?, ?, ?)');
 
 function toJson(row) {
   return {
@@ -67,7 +67,7 @@ function readTeam(body, event, settings, selfId) {
   const raw = Array.isArray(body?.members) ? body.members.slice(0, 60) : [];
 
   const members = raw.map((entry, i) => {
-    const m = { name: clean(entry?.name, 60), roll: cleanRoll(entry?.roll), branch: clean(entry?.branch, 40), phone: cleanPhone(entry?.phone) };
+    const m = { name: clean(entry?.name, 60), roll: cleanRoll(entry?.roll), branch: clean(entry?.branch, 40), phone: cleanPhone(entry?.phone), section: tidySection(entry?.section) };
     const listed = ROLL_RE.test(m.roll) ? getStudent(m.roll) : null;
 
     if (!ROLL_RE.test(m.roll)) {
@@ -86,6 +86,7 @@ function readTeam(body, event, settings, selfId) {
     if (listed) {
       m.name = listed.name;
       m.branch = listed.branch || m.branch;
+      m.section = listed.section || m.section;
       if (!m.phone && listed.phone) m.phone = listed.phone;
     }
     if (m.name.length < 2) errors[`m${i}-name`] = 'Enter the name.';
@@ -166,7 +167,7 @@ router.post('/registrations', (req, res) => {
     `).run(newCode(), event.id, team.teamName, team.leaderEmail, team.members[0].phone, team.members.length, amount, team.utr,
       status, status === 'approved' ? req.admin.username : null, status === 'approved' ? now : null, now, team.note);
     const regId = Number(result.lastInsertRowid);
-    team.members.forEach((m, i) => insertMember.run(regId, i, m.name, m.roll, m.branch, m.phone));
+    team.members.forEach((m, i) => insertMember.run(regId, i, m.name, m.roll, m.branch, m.phone, m.section));
     return regId;
   });
 
@@ -198,7 +199,7 @@ router.put('/registrations/:id', (req, res) => {
       WHERE id = ?
     `).run(team.teamName, team.leaderEmail, team.members[0].phone, team.members.length, amount, team.utr, team.note, row.id);
     db.prepare('DELETE FROM members WHERE registration_id = ?').run(row.id);
-    team.members.forEach((m, i) => insertMember.run(row.id, i, m.name, m.roll, m.branch, m.phone));
+    team.members.forEach((m, i) => insertMember.run(row.id, i, m.name, m.roll, m.branch, m.phone, m.section));
   });
 
   // A readable summary of what changed, for the activity log.
@@ -226,6 +227,7 @@ function readStudent(body) {
   const student = {
     name: clean(body?.name, 60),
     branch: clean(body?.branch, 40),
+    section: tidySection(body?.section),
     phone: cleanPhone(body?.phone),
     email: clean(body?.email, 120).toLowerCase(),
   };
@@ -256,8 +258,8 @@ router.post('/students', (req, res) => {
   if (!ROLL_RE.test(roll) || !/\d/.test(roll)) errors.roll = 'Enter a valid roll number (3 to 20 letters and digits).';
   else if (getStudent(roll)) errors.roll = 'This roll number is already on the list. Edit that student instead.';
   if (Object.keys(errors).length) return res.status(400).json({ error: Object.values(errors)[0], fields: errors });
-  db.prepare('INSERT INTO students (roll, name, branch, phone, email) VALUES (?, ?, ?, ?, ?)')
-    .run(roll, student.name, student.branch, student.phone, student.email);
+  db.prepare('INSERT INTO students (roll, name, branch, phone, email, section) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(roll, student.name, student.branch, student.phone, student.email, student.section);
   audit(req.admin.username, 'student.added', roll);
   res.status(201).json({ student: getStudent(roll), ...summary() });
 });
@@ -269,15 +271,16 @@ router.put('/students/:roll', (req, res) => {
   const { errors, student } = readStudent(req.body);
   if (Object.keys(errors).length) return res.status(400).json({ error: Object.values(errors)[0], fields: errors });
 
-  // Registrations keep their own copy of each member's name and branch. Keep those in step,
+  // Registrations keep their own copy of each member's name, branch and section. Keep those in step,
   // so a corrected spelling shows up on attendance sheets too.
   const updated = tx(() => {
-    db.prepare('UPDATE students SET name = ?, branch = ?, phone = ?, email = ? WHERE roll = ?')
-      .run(student.name, student.branch, student.phone, student.email, roll);
+    db.prepare('UPDATE students SET name = ?, branch = ?, phone = ?, email = ?, section = ? WHERE roll = ?')
+      .run(student.name, student.branch, student.phone, student.email, student.section, roll);
     const inTeams = db.prepare(`
-      UPDATE members SET name = ?, branch = CASE WHEN ? != '' THEN ? ELSE branch END
+      UPDATE members SET name = ?, branch = CASE WHEN ? != '' THEN ? ELSE branch END,
+        section = CASE WHEN ? != '' THEN ? ELSE section END
       WHERE roll = ? AND registration_id IN (SELECT id FROM registrations WHERE status != 'rejected')
-    `).run(student.name, student.branch, student.branch, roll).changes;
+    `).run(student.name, student.branch, student.branch, student.section, student.section, roll).changes;
     // Solo entries use the participant's name as the team name.
     db.prepare(`
       UPDATE registrations SET team_name = ? WHERE status != 'rejected'

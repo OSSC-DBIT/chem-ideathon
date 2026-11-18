@@ -46,7 +46,8 @@ Warnings that can appear at the top:
 ## Registrations
 
 - **Search** matches registration ID, team name, any member's name or roll number, phone, email and
-  transaction ID. Filter by event and status.
+  transaction ID. Filter by event, **section** and status. The section filter shows every team that
+  has at least one member from that section.
 - Click a row to open it: members, amount, transaction ID, and the payment screenshot (click the
   image for full size).
 - **Approve payment** confirms the team. **Reject** needs a reason; the team sees it in their status
@@ -62,7 +63,8 @@ Open a pending or approved registration and press **Edit team**.
 | You want to | Do this |
 | --- | --- |
 | Remove a member | **Remove** on that member's card |
-| Add a member | **Add a member**, then type the roll number. Name, branch and phone fill in from the student list. |
+| Add a member | **Add a member**, then type the roll number. Name, branch, section and phone fill in from the student list. |
+| Fix a section | Type it in the Section box of that member. |
 | Change the leader | **Make leader** on the member who should lead. They move to the top. The leader needs a phone number. |
 | Fix a phone number, the team name, the leader's email or the transaction ID | Change the field |
 | Fix the spelling of a name | Names that come from the student list are locked here. Correct the student under **Student list**, and every team they are in is updated. |
@@ -108,6 +110,7 @@ Exports follow the current search and filters.
 | JSON | Developers |
 
 Choose **One row per team** (for payment tracking) or **One row per participant** (for attendance).
+The per participant export has a **Section** column, so it sorts straight into class-wise attendance sheets.
 
 Exported files are **not encrypted** and contain student details. Keep them on a trusted device and
 delete them when you are done.
@@ -161,7 +164,8 @@ One student per row, the first row being the column headings. Excel (.xlsx) or C
 | --- | --- | --- | --- |
 | Roll number | Yes | Roll number, Roll No, USN, Reg No, Registration number, Admission No, Student ID | 3 to 20 letters and digits, also `/` and `-`. Capitals and spaces do not matter. |
 | Name | Yes | Name, Student Name, Full Name | Full name |
-| Branch | No | Branch, Department, Dept, Section, Course, Program, Stream | Any text |
+| Branch | No | Branch, Department, Dept, Course, Program, Stream | Any text |
+| Section | No | Section, Sec, Division | The class section. "A", "Sec A" and "section a" are all read as A. When it is missing, the student picks it in the form. |
 | Phone | No | Phone, Mobile, Mobile No, Contact, WhatsApp | 10 digit Indian mobile number |
 | Email | No, but needed for email verification | Email, E-mail, Email ID | The address the code is sent to |
 
@@ -175,8 +179,8 @@ One student per row, the first row being the column headings. Excel (.xlsx) or C
 
 After a bulk upload you do not need to upload the file again to fix one row.
 
-- **Edit** on a student's row changes the name, branch, phone or email. A corrected name or branch is
-  also updated in every registration that student is in, so attendance sheets come out right. A new
+- **Edit** on a student's row changes the name, branch, section, phone or email. A corrected name,
+  branch or section is also updated in every registration that student is in, so attendance sheets come out right. A new
   email also becomes the contact email of a team that student leads.
 - **Add one student** adds a single student who was missing from the file.
 - **Remove** takes a student off the list. It does not touch a registration they are already in.
@@ -205,8 +209,9 @@ email on the list is wrong, fix the list (Add to the list and update existing, w
 - **Registration window**: Open, Closed, or Scheduled with an opening and closing time.
 - **Payment**: UPI ID and the payee name students see.
 - **Event details**: name, date, contact person and phone (shown publicly), and an optional notice on the home page.
-- **Rules**: whether a student may join more than one event (off by default), and the branch list
-  used when the student list is off.
+- **Rules**: whether a student may join more than one event (off by default), the branch list used
+  when the student list is off, and the **section list** students pick from (A to H to start with;
+  change it to match your college). A section that comes from the student list is used as it is.
 - **Organiser accounts**: add and remove organisers (owner only). Organisers can change their own password here.
 
 ## Activity log

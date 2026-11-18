@@ -20,7 +20,7 @@ check() { # name, expected substring, actual
 # A real 600x900 image stands in for the payment screenshot. Request bodies go through files
 # because an image is too long for a command line argument.
 PNG=$(node scripts/make-test-image.mjs good)
-member() { echo "{\"name\":\"Student $1\",\"roll\":\"R$2\",\"branch\":\"CSE\",\"phone\":\"$3\"}"; }
+member() { echo "{\"name\":\"Student $1\",\"roll\":\"R$2\",\"branch\":\"CSE\",\"phone\":\"$3\",\"section\":\"A\"}"; }
 team() { # eventId, teamName, rollPrefix, utr, count
   local m="$(member A "${3}1" 9876543210)"
   for i in $(seq 2 "$5"); do m="$m,$(member B "$3$i" "")"; done
@@ -118,28 +118,28 @@ check "bulk reject needs reason" 'Give a reason'           "$(admin POST /regist
 BEFORE=$(admin GET '/registrations?status=pending' | grep -o '"id":[0-9]*,"code"' | head -1 | grep -o '[0-9]*')
 check "bulk reject fake entry" '"rejected":1'              "$(admin POST /registrations/bulk-reject "{\"ids\":[$BEFORE],\"reason\":\"Not in statement\"}")"
 # ---- student list ----
-ROSTER='Roll number,Name,Branch,Phone,Email ID\nRT1,Asha Rao,CSE,9876500001,Asha.Rao@dbit.example\nRT2,Vikram N,ECE,\nRT3,Divya S,ISE,\nRT4,Rahul K,CSE,\nRT5,Meera P,CSE,\nbad roll!,Nobody,CSE,\nRT2,Duplicate,CSE,'
+ROSTER='Roll number,Name,Branch,Section,Phone,Email ID\nRT1,Asha Rao,CSE,Sec A,9876500001,Asha.Rao@dbit.example\nRT2,Vikram N,ECE,b,,\nRT3,Divya S,ISE,A,,\nRT4,Rahul K,CSE,C,,\nRT5,Meera P,CSE,A,,\nbad roll!,Nobody,CSE,A,,\nRT2,Duplicate,CSE,A,,'
 check "roster needs a list"    'Upload the student list first' "$(admin PUT /settings '{"rosterRequired":true}')"
 check "roster import"          '"imported":5,"skipped":2'  "$(admin POST /students/import "{\"kind\":\"text\",\"mode\":\"replace\",\"content\":\"$ROSTER\"}")"
 check "roster bad file"        'No students were found'    "$(admin POST /students/import '{"kind":"text","content":"hello\nworld"}')"
 check "roster search"          '"name":"Divya S"'          "$(admin GET '/students?q=divya')"
 check "roster on"              '"rosterRequired":true'     "$(admin PUT /settings '{"rosterRequired":true,"matchLeaderPhone":true}')"
 check "public shows roster"    '"rosterRequired":true'     "$(curl -s $B/api/public)"
-check "lookup fills names"     '"students":[{"name":"As** Ra*","branch":"CSE","email":"as***@dbit.example"},{"name":"Vi**** N","branch":"ECE"}]' "$(precheck 5 Fresh '"rt1","RT2"')"
+check "lookup fills names"     '"students":[{"name":"As** Ra*","branch":"CSE","section":"A","email":"as***@dbit.example"},{"name":"Vi**** N","branch":"ECE","section":"B"}]' "$(precheck 5 Fresh '"rt1","RT2"')"
 check "lookup unknown roll"    'not in the 1st year student list' "$(precheck 5 Fresh '"RT1","RX9"')"
 rteam() { echo "{\"eventId\":5,\"teamName\":\"$1\",\"email\":\"lead@example.com\",\"members\":[{\"name\":\"Fake Name\",\"roll\":\"RT1\",\"branch\":\"Hacker\",\"phone\":\"$2\"},{\"roll\":\"RT2\"},{\"roll\":\"RT3\"},{\"roll\":\"RT4\"},{\"roll\":\"$3\"}],\"utr\":\"$4\",\"screenshot\":\"$PNG\",\"consentPrivacy\":true,\"consentFirstYear\":true}"; }
 check "unlisted roll refused"  'not in the 1st year student list' "$(reg "$(rteam Listed 9876500001 RX9 787878787878)")"
 check "leader phone mismatch"  'does not match the one the college has' "$(reg "$(rteam Listed 9876599999 RT5 787878787878)")"
 check "listed team registers"  '"status":"pending"'        "$(reg "$(rteam Listed 9876500001 RT5 787878787878)")"
 check "email comes from list"  '"leaderEmail":"asha.rao@dbit.example"' "$(admin GET '/registrations?q=RT1')"
-check "member email stays hidden" '"students":[{"name":"Vi**** N","branch":"ECE"},{"name":"As** Ra*","branch":"CSE"}]' "$(precheck 4 Fresh '"RT2","RT1"' | sed 's/.*\("students".*\)}/\1/')"
+check "member email stays hidden" '"students":[{"name":"Vi**** N","branch":"ECE","section":"B"},{"name":"As** Ra*","branch":"CSE","section":"A"}]' "$(precheck 4 Fresh '"RT2","RT1"' | sed 's/.*\("students".*\)}/\1/')"
 check "lookup never shows full name" 'no' "$(precheck 5 Fresh '"RT1","RT2","RT3"' | grep -q 'Asha Rao\|Vikram\|Divya' && echo yes || echo no)"
 check "names come from list"   '"name":"Asha Rao","roll":"RT1","branch":"CSE"' "$(admin GET '/registrations?q=RT1')"
 check "remove student"         '"count":4'                 "$(admin DELETE /students/RT5 '{}')"
-check "clear list turns it off" '"count":0,"withPhone":0,"withEmail":0,"rosterRequired":false' "$(admin DELETE /students '{}')"
+check "clear list turns it off" '"count":0,"withPhone":0,"withEmail":0,"withSection":0,"rosterRequired":false' "$(admin DELETE /students '{}')"
 # ---- email verification ----
 MAILS="$DATA_DIR/mails.jsonl"
-VROSTER='Roll number,Name,Branch,Email\nRV1,Leela Nair,CSE,leela.nair@dbit.example\nRV2,Arjun M,ECE,\nRV3,Sana K,ISE,\nRV4,Tarun P,CSE,\nRV5,Nisha R,CSE,'
+VROSTER='Roll number,Name,Branch,Section,Email\nRV1,Leela Nair,CSE,A,leela.nair@dbit.example\nRV2,Arjun M,ECE,B,\nRV3,Sana K,ISE,A,\nRV4,Tarun P,CSE,C,\nRV5,Nisha R,CSE,A,'
 admin POST /students/import "{\"kind\":\"text\",\"mode\":\"replace\",\"content\":\"$VROSTER\"}" > /dev/null
 check "verification on"        '"emailVerification":true'  "$(admin PUT /settings '{"rosterRequired":true,"emailVerification":true,"matchLeaderPhone":false}')"
 check "public shows verify"    '"emailVerification":true'  "$(curl -s $B/api/public)"
@@ -222,6 +222,40 @@ admin POST /students '{"roll":"RM3","name":"Mary C"}' > /dev/null
 check "fixing a name updates the team too" '"registrationsUpdated":1' "$(admin PUT /students/RM3 '{"name":"Mary Corrected","branch":"ISE"}')"
 check "team shows the fixed name" '"name":"Mary Corrected","roll":"RM3","branch":"ISE"' "$(admin GET '/registrations?q=RM3')"
 check "list name wins in the editor" '"name":"Mary Corrected"' "$(admin PUT /registrations/$MID "$(mteam 'Manual Team Renamed' "$(mm 'Mohan B' RM2 9876544444),$(mm 'Mona A' RM1),$(mm 'Typed Wrong' RM3),$(mm 'Mani D' RM4),$(mm 'Mita F' RM6)")")"
+admin DELETE /students '{}' > /dev/null
+
+# ---- sections ----
+check "public info lists sections" '"sections":["A","B"'    "$(curl -s $B/api/public)"
+check "section is required"     'Select the section'         "$(reg "$(team 5 Sectionless W 919191919191 5 | sed 's/,"section":"A"//g')")"
+check "unknown section refused" 'Select the section'         "$(reg "$(team 5 Sectionless W 919191919191 5 | sed 's/"section":"A"/"section":"ZZ"/g')")"
+check "section typed loosely"   '"status":"pending"'         "$(reg "$(team 5 Sectioned W 919191919191 5 | sed 's/"section":"A"/"section":"sec b"/g')")"
+check "section stored"          '"roll":"RW1","branch":"CSE","phone":"9876543210","section":"B"' "$(admin GET '/registrations?q=RW1')"
+check "filter by section"       '"teamName":"Sectioned"'     "$(admin GET '/registrations?section=b')"
+check "filter leaves others out" 'no'                        "$(admin GET '/registrations?section=H' | grep -q Sectioned && echo yes || echo no)"
+check "export has a section column" '"Branch","Section","Phone"' "$(admin GET '/export?format=csv&layout=participants&q=Sectioned' | head -1)"
+check "export shows the section" '"RW1","CSE","B"'           "$(admin GET '/export?format=csv&layout=participants&q=Sectioned')"
+check "team export shows the section" 'Sec B'                "$(admin GET '/export?format=csv&layout=teams&q=Sectioned')"
+check "sections can be changed" '"sections":["P","Q"]'       "$(admin PUT /settings '{"sections":["p","Sec Q","p"]}')"
+check "old section no longer offered" 'Select the section'   "$(reg "$(team 2 Newsec Y 929292929292 6)")"
+check "sections need one entry" 'at least one section'       "$(admin PUT /settings '{"sections":[]}')"
+admin PUT /settings '{"sections":["A","B","C","D","E","F","G","H"]}' > /dev/null
+admin POST /students/import "{\"kind\":\"text\",\"mode\":\"replace\",\"content\":\"USN,Student Name,Department,Sec,Mobile\\nRS7,Seema T,CSE,section c,9876577777\\nRS8,Sunil U,ECE,,\"}" > /dev/null
+check "import reads the section column" '"section":"C"'      "$(admin GET '/students?q=RS7')"
+check "department is not taken for the section" '"branch":"CSE"' "$(admin GET '/students?q=RS7')"
+check "section count"           '"withSection":1'            "$(admin GET /students)"
+check "lookup gives the section" '"section":"C"'             "$(admin POST /students/lookup '{"rolls":["RS7"]}')"
+check "edit a student section"  '"section":"D"'              "$(admin PUT /students/RS7 '{"name":"Seema T","branch":"CSE","section":"d"}')"
+admin PUT /settings '{"rosterRequired":true}' > /dev/null
+check "list section reaches the form" '"section":"D"'        "$(precheck 2 Fresh '"RS7"')"
+check "no section on the list: form asks" '{"name":"Su*** U","branch":"ECE","section":""}' "$(precheck 2 Fresh '"RS7","RS8"')"
+LISTED="{\"eventId\":4,\"email\":\"s@example.com\",\"members\":[{\"roll\":\"RS7\",\"phone\":\"9876577777\",\"section\":\"H\"}],\"utr\":\"939393939393\",\"screenshot\":\"$PNG\",\"consentPrivacy\":true,\"consentFirstYear\":true}"
+check "list section wins over the form" '"status":"pending"' "$(reg "$LISTED")"
+check "stored section is the list one" '"roll":"RS7","branch":"CSE","phone":"9876577777","section":"D"' "$(admin GET '/registrations?q=RS7')"
+check "fixing a section updates the entry" '"registrationsUpdated":1' "$(admin PUT /students/RS7 '{"name":"Seema T","branch":"CSE","section":"E"}')"
+check "entry shows the new section" '"section":"E"'          "$(admin GET '/registrations?q=RS7')"
+NOSEC="{\"eventId\":4,\"email\":\"t@example.com\",\"members\":[{\"roll\":\"RS8\",\"phone\":\"9876588888\"}],\"utr\":\"949494949494\",\"screenshot\":\"$PNG\",\"consentPrivacy\":true,\"consentFirstYear\":true}"
+check "no list section: must be picked" 'Select the section' "$(reg "$NOSEC")"
+admin PUT /settings '{"rosterRequired":false}' > /dev/null
 admin DELETE /students '{}' > /dev/null
 
 # ---- organiser accounts ----

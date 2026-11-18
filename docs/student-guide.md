@@ -6,7 +6,7 @@ How to register a team for Ideathon '26. Registration is open to 1st year studen
 
 Have these ready:
 
-- The **roll number** of every team member, exactly as on your ID card.
+- The **roll number** and **section** of every team member, exactly as on your ID card.
 - The team leader's **phone number**, and access to the leader's **college email inbox**.
 - A **UPI app** (Google Pay, PhonePe, Paytm or any other) with enough balance for the whole team.
   The fee is per participant, so a team of 5 pays 5 times the fee in one payment.
@@ -29,7 +29,8 @@ are full or closed cannot be chosen.
 2. Type each member's **roll number**. The name and branch fill in by themselves from the college's
    student list. Names are shown partly hidden, like `As** Ra*`, for privacy; check that the visible
    letters match your teammate.
-3. Enter the team leader's phone number. Phone numbers of other members are optional.
+3. Choose each member's **section**. If the college's list already has it, it is filled in and locked.
+4. Enter the team leader's phone number. Phone numbers of other members are optional.
 
 Messages you may see under a roll number:
 
@@ -37,7 +38,8 @@ Messages you may see under a roll number:
 | --- | --- |
 | This roll number is not in the 1st year student list | Typing mistake, or the student is missing from the list. Check the number; if it is right, contact the coordinator. |
 | This student is already registered for ... | That student is already in another team. Pick someone else, or ask them to sort it out with the coordinator. |
-| This roll number is repeated in your team | You typed the same roll number twice. |
+| This is the same roll number as the team leader (or member 2, 3 ...) | You typed the same roll number twice. Each member needs their own. |
+| Select the section | Pick the member's section from the list. |
 
 Pressing **Enter** in a field moves to the next field. Use **Add member** and **Remove** to change
 the team size within the allowed range.

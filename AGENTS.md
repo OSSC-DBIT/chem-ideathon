@@ -90,8 +90,8 @@ docker-compose.yml        app (Node), nginx, clamav. Only nginx is published, on
 | --- | --- |
 | `events` | Title, team or solo, min and max size, limit, fee, open, order, archived |
 | `registrations` | Code, event, team name, leader email and phone, size, amount, transaction ID, screenshot file, status (`pending`, `approved`, `rejected`), who decided, scan status, source (`online` or `admin`), note |
-| `members` | Per registration: position (0 is the leader), name, roll, branch, phone |
-| `students` | The uploaded list: roll, name, branch, phone, email |
+| `members` | Per registration: position (0 is the leader), name, roll, branch, section, phone |
+| `students` | The uploaded list: roll, name, branch, section, phone, email |
 | `organisers` | Username, salt, scrypt hash. The owner account is not here; it lives in `.env` |
 | `settings`, `admin_sessions`, `audit` | Admin panel settings as JSON, sessions, activity log |
 
@@ -215,6 +215,8 @@ Keeping things in step
   itself and passes `servername` for TLS; keep that when touching the transport.
 - Hand added registrations have an empty `screenshot` and may have an empty `utr`. Code that reads
   either must cope with that.
+- A member's section comes from the student list when the list has one (and is then locked in the
+  form); otherwise the student picks from the `sections` setting. `tidySection()` normalises "sec a" to "A".
 - Names in a registration are a copy. Editing a student updates the copies in live registrations;
   keep that propagation when changing `PUT /students/:roll`.
 - Removing a row in the admin team editor can fire a late `change` event for a row that is gone.

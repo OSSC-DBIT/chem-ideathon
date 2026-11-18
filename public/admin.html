@@ -93,6 +93,10 @@
             <select id="f-event"><option value="">All events</option></select>
           </div>
           <div class="field">
+            <label for="f-section">Section</label>
+            <select id="f-section"><option value="">All sections</option></select>
+          </div>
+          <div class="field">
             <label for="f-status">Status</label>
             <select id="f-status">
               <option value="">All</option>
@@ -189,7 +193,8 @@
                 <tbody>
                   <tr><td><strong>Roll number</strong></td><td>Yes</td><td>Roll number, Roll No, USN, Reg No, Registration number, Admission No, Student ID</td><td>3 to 20 letters and digits (also / and -). Capitals and spaces do not matter.</td><td class="nowrap">26CH001</td></tr>
                   <tr><td><strong>Name</strong></td><td>Yes</td><td>Name, Student Name, Full Name</td><td>The student's full name, as it should appear on lists.</td><td class="nowrap">Asha Rao</td></tr>
-                  <tr><td><strong>Branch</strong></td><td>Optional</td><td>Branch, Department, Dept, Section, Course, Program, Stream</td><td>Any text.</td><td class="nowrap">CSE</td></tr>
+                  <tr><td><strong>Branch</strong></td><td>Optional</td><td>Branch, Department, Dept, Course, Program, Stream</td><td>Any text.</td><td class="nowrap">CSE</td></tr>
+                  <tr><td><strong>Section</strong></td><td>Optional</td><td>Section, Sec, Division</td><td>The class section. "A", "Sec A" and "section a" are all read as A. If it is missing, the student picks it in the form.</td><td class="nowrap">A</td></tr>
                   <tr><td><strong>Phone</strong></td><td>Optional</td><td>Phone, Mobile, Mobile No, Contact, WhatsApp</td><td>10 digit Indian mobile number. +91 or a leading 0 is fine.</td><td class="nowrap">9876500001</td></tr>
                   <tr><td><strong>Email</strong></td><td>Optional, needed for email verification</td><td>Email, E-mail, Email ID</td><td>The address the verification code is sent to.</td><td class="nowrap">asha.rao@example.com</td></tr>
                 </tbody>
@@ -200,7 +205,7 @@
             <li>Columns can be in any order, and extra columns (Sl No, Gender and so on) are ignored.</li>
             <li>A title row above the headings is fine. Every sheet in an Excel file is read.</li>
             <li>A row is skipped if its roll number is invalid, its name is empty, or the roll number already appeared. The result shows which rows were skipped and why.</li>
-            <li>No headings at all? Then the columns are read in this order: Roll number, Name, Branch, Phone, Email.</li>
+            <li>No headings at all? Then the columns are read in this order: Roll number, Name, Branch, Phone, Email, Section.</li>
           </ul>
           <p><a class="btn white" href="/student-list-template.csv" download>Download a template (.csv)</a></p>
         </div>
@@ -216,7 +221,7 @@
             <p class="center muted small">or</p>
             <div class="field">
               <label for="ro-text">Paste rows copied from a spreadsheet</label>
-              <textarea id="ro-text" placeholder="Roll number, Name, Branch, Phone, Email"></textarea>
+              <textarea id="ro-text" placeholder="Roll number, Name, Branch, Section, Phone, Email"></textarea>
             </div>
             <div class="radio-row mt">
               <label class="check"><input type="radio" name="ro-mode" value="replace" checked><span>Replace the whole list</span></label>
@@ -261,7 +266,7 @@
         <div class="card table-card roster-list">
           <div class="table-scroll">
             <table>
-              <thead><tr><th>Roll number</th><th>Name</th><th>Branch</th><th>Phone</th><th>Email</th><th><span class="sr-only">Actions</span></th></tr></thead>
+              <thead><tr><th>Roll number</th><th>Name</th><th>Branch</th><th>Section</th><th>Phone</th><th>Email</th><th><span class="sr-only">Actions</span></th></tr></thead>
               <tbody id="ro-rows"></tbody>
             </table>
           </div>
@@ -331,6 +336,11 @@
             <div class="field">
               <label for="branches">Branches <span class="opt">(one per line)</span></label>
               <textarea id="branches"></textarea>
+            </div>
+            <div class="field">
+              <label for="sections">Sections <span class="opt">(one per line; students pick from these)</span></label>
+              <textarea id="sections"></textarea>
+              <p class="hint">A section on the student list is used as it is, even if it is not in this list.</p>
             </div>
           </div>
 

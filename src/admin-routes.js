@@ -11,7 +11,7 @@ import { router as teamRoutes } from './admin-teams.js';
 import { openFile, encryptionOn } from './vault.js';
 import { buildTable, toCsv, toXlsx } from './export.js';
 import { mailConfigured, mailInfo, mailsSentToday, sendMail, sendMailLater, messages, MailError, checkMailServer } from './mailer.js';
-import { tableRows, readRoster, importStudents, studentCount, normaliseRoll } from './roster.js';
+import { tableRows, readRoster, importStudents, studentCount, normaliseRoll, tidySection } from './roster.js';
 import { MAX_STATEMENT_BYTES, UploadError, scanOrThrow, scannerConfigured, scannerHealthy, scanRequired, limits } from './uploads.js';
 
 export const router = express.Router();
@@ -66,7 +66,7 @@ router.use(teamRoutes);
 // ---------------------------------------------------------------------------
 // Registrations
 // ---------------------------------------------------------------------------
-const membersOf = db.prepare('SELECT name, roll, branch, phone FROM members WHERE registration_id = ? ORDER BY position');
+const membersOf = db.prepare('SELECT name, roll, branch, phone, section FROM members WHERE registration_id = ? ORDER BY position');
 const getReg = db.prepare('SELECT r.*, e.title AS event_title FROM registrations r JOIN events e ON e.id = r.event_id WHERE r.id = ?');
 const setStatus = db.prepare('UPDATE registrations SET status = ?, reject_reason = ?, decided_by = ?, decided_at = ? WHERE id = ?');
 const deleteReg = db.prepare('DELETE FROM registrations WHERE id = ?');
@@ -103,6 +103,11 @@ function queryRegistrations(query) {
   const eventId = int(query.event, 1, 1e9, 0);
   if (eventId) { where.push('r.event_id = ?'); params.push(eventId); }
   if (['pending', 'approved', 'rejected'].includes(query.status)) { where.push('r.status = ?'); params.push(query.status); }
+  const section = tidySection(query.section);
+  if (section) {
+    where.push('EXISTS (SELECT 1 FROM members m WHERE m.registration_id = r.id AND m.section = ?)');
+    params.push(section);
+  }
   const q = clean(query.q, 60);
   if (q) {
     const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
@@ -364,6 +369,7 @@ function rosterSummary() {
     count: studentCount(),
     withPhone: db.prepare("SELECT COUNT(*) AS n FROM students WHERE phone != ''").get().n,
     withEmail: db.prepare("SELECT COUNT(*) AS n FROM students WHERE email != ''").get().n,
+    withSection: db.prepare("SELECT COUNT(*) AS n FROM students WHERE section != ''").get().n,
     rosterRequired: settings.rosterRequired,
     matchLeaderPhone: settings.matchLeaderPhone,
     emailVerification: settings.emailVerification,
@@ -542,6 +548,11 @@ router.put('/settings', (req, res) => {
       return res.status(400).json({ error: 'Email is not set up yet. Add the SMTP settings to the .env file and restart, then send a test email.' });
     }
     patch.emailVerification = b.emailVerification === true;
+  }
+  if ('sections' in b) {
+    const sections = Array.isArray(b.sections) ? [...new Set(b.sections.map((x) => tidySection(x)).filter(Boolean))].slice(0, 60) : [];
+    if (!sections.length) return res.status(400).json({ error: 'Add at least one section.' });
+    patch.sections = sections;
   }
   if ('branches' in b) {
     const branches = Array.isArray(b.branches) ? [...new Set(b.branches.map((x) => clean(x, 40)).filter(Boolean))].slice(0, 40) : [];

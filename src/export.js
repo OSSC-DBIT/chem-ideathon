@@ -6,11 +6,11 @@ const ist = (iso) =>
 /** Builds { columns, rows } for either layout. `regs` carry a `members` array. */
 export function buildTable(regs, layout) {
   if (layout === 'participants') {
-    const columns = ['Reg ID', 'Event', 'Team', 'Role', 'Name', 'Roll number', 'Branch', 'Phone', 'Status', 'Team amount (Rs)', 'Transaction ID'];
+    const columns = ['Reg ID', 'Event', 'Team', 'Role', 'Name', 'Roll number', 'Branch', 'Section', 'Phone', 'Status', 'Team amount (Rs)', 'Transaction ID'];
     const rows = [];
     for (const r of regs) {
       r.members.forEach((m, i) => {
-        rows.push([r.code, r.eventTitle, r.teamName, i === 0 ? 'Leader' : 'Member', m.name, m.roll, m.branch, m.phone, r.status, r.amount, r.utr]);
+        rows.push([r.code, r.eventTitle, r.teamName, i === 0 ? 'Leader' : 'Member', m.name, m.roll, m.branch, m.section, m.phone, r.status, r.amount, r.utr]);
       });
     }
     return { columns, rows };
@@ -23,7 +23,7 @@ export function buildTable(regs, layout) {
   ];
   const rows = regs.map((r) => [
     r.code, r.eventTitle, r.teamName, r.memberCount, r.members[0]?.name || '', r.members[0]?.roll || '',
-    r.leaderPhone, r.leaderEmail, r.members.map((m) => `${m.name} (${m.roll}, ${m.branch})`).join('; '),
+    r.leaderPhone, r.leaderEmail, r.members.map((m) => `${m.name} (${[m.roll, m.branch, m.section && `Sec ${m.section}`].filter(Boolean).join(', ')})`).join('; '),
     r.amount, r.utr, r.status, r.rejectReason, ist(r.createdAt), ist(r.decidedAt), r.decidedBy || '',
     r.source === 'admin' ? 'Organiser' : 'Student', r.note || '',
   ]);

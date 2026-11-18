@@ -18,6 +18,9 @@ const tidyPhone = (value) => {
   return /^[6-9]\d{9}$/.test(last10) ? last10 : '';
 };
 
+/** "a", "Sec A" and "section a" all become "A"; anything else is kept as typed, in capitals. */
+export const tidySection = (value) => tidy(value, 30).replace(/^sec(tion)?\.?\s*[-:]?\s*/i, '').toUpperCase().slice(0, 20);
+
 const tidyEmail = (value) => {
   const email = tidy(value, 120).toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : '';
@@ -38,10 +41,11 @@ export const maskName = (name) => String(name || '').split(' ').filter(Boolean)
   .map((word) => (word.length <= 1 ? word : word.length === 2 ? `${word[0]}*` : word.slice(0, 2) + '*'.repeat(word.length - 2)))
   .join(' ');
 
-const findStudent = db.prepare('SELECT roll, name, branch, phone, email FROM students WHERE roll = ?');
+const findStudent = db.prepare('SELECT roll, name, branch, phone, email, section FROM students WHERE roll = ?');
 const upsertStudent = db.prepare(`
-  INSERT INTO students (roll, name, branch, phone, email) VALUES (?, ?, ?, ?, ?)
-  ON CONFLICT(roll) DO UPDATE SET name = excluded.name, branch = excluded.branch, phone = excluded.phone, email = excluded.email
+  INSERT INTO students (roll, name, branch, phone, email, section) VALUES (?, ?, ?, ?, ?, ?)
+  ON CONFLICT(roll) DO UPDATE SET name = excluded.name, branch = excluded.branch, phone = excluded.phone,
+    email = excluded.email, section = excluded.section
 `);
 const countStudents = db.prepare('SELECT COUNT(*) AS n FROM students');
 
@@ -118,12 +122,13 @@ export async function tableRows(kind, raw) {
 const HEADINGS = {
   roll: /roll|usn|reg(istration|n)?\.?\s*(no|num|id)?|admission|student\s*id|^id$/i,
   name: /name/i,
-  branch: /branch|dep(t|artment)|section|course|program|stream/i,
+  branch: /branch|dep(t|artment)|course|program|stream/i,
+  section: /section|^sec\.?$|division|^div\.?$/i,
   phone: /phone|mobile|contact|whats\s*app/i,
   email: /e-?mail/i,
 };
 
-/** Finds which column holds what. Uses the heading row when there is one, else assumes roll, name, branch, phone. */
+/** Finds which column holds what. Uses the heading row when there is one, else assumes roll, name, branch, phone, email, section. */
 function mapColumns(rows) {
   for (let r = 0; r < Math.min(rows.length, 15); r += 1) {
     const cells = rows[r].map((c) => tidy(c, 60));
@@ -134,13 +139,14 @@ function mapColumns(rows) {
         start: r + 1,
         roll,
         name,
-        branch: cells.findIndex((c, i) => i !== roll && i !== name && HEADINGS.branch.test(c)),
+        branch: cells.findIndex((c, i) => i !== roll && i !== name && HEADINGS.branch.test(c) && !HEADINGS.section.test(c)),
+        section: cells.findIndex((c, i) => i !== roll && i !== name && HEADINGS.section.test(c)),
         phone: cells.findIndex((c, i) => i !== roll && i !== name && HEADINGS.phone.test(c) && !HEADINGS.email.test(c)),
         email: cells.findIndex((c, i) => i !== roll && i !== name && HEADINGS.email.test(c)),
       };
     }
   }
-  return { start: 0, roll: 0, name: 1, branch: 2, phone: 3, email: 4 };
+  return { start: 0, roll: 0, name: 1, branch: 2, phone: 3, email: 4, section: 5 };
 }
 
 /** @returns {{ students: Map<string, object>, skipped: number, problems: string[] }} */
@@ -165,6 +171,7 @@ export function readRoster(rows) {
       branch: cols.branch >= 0 ? tidy(row[cols.branch], 40) : '',
       phone: cols.phone >= 0 ? tidyPhone(row[cols.phone]) : '',
       email: cols.email >= 0 ? tidyEmail(row[cols.email]) : '',
+      section: cols.section >= 0 ? tidySection(row[cols.section]) : '',
     });
   }
   return { students, skipped, problems };
@@ -174,7 +181,7 @@ export function readRoster(rows) {
 export function importStudents(students, mode) {
   return tx(() => {
     if (mode === 'replace') db.exec('DELETE FROM students');
-    for (const s of students.values()) upsertStudent.run(s.roll, s.name, s.branch, s.phone, s.email);
+    for (const s of students.values()) upsertStudent.run(s.roll, s.name, s.branch, s.phone, s.email, s.section);
     return studentCount();
   });
 }

@@ -551,3 +551,13 @@ dialog.editor { width: min(96vw, 1000px); }
 .ed-summary { margin: 16px 0 0; padding: 10px 14px; border: var(--bw) solid var(--ink); border-radius: 10px; background: var(--green); font-weight: 600; }
 .ed-summary.warn { background: var(--orange); }
 .ed-open { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 2px solid var(--ink); }
+
+/* A drop down that is filled in from the student list */
+select.locked, select:disabled { background: #f1ecd6; color: var(--ink); opacity: 1; cursor: default; }
+/* The admin team editor has five fields per member now */
+.ed-fields { grid-template-columns: 1fr 1.5fr 1fr 0.7fr 1fr; }
+@media (max-width: 860px) { .ed-fields { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) { .ed-fields { grid-template-columns: minmax(0, 1fr); } }
+
+/* Cards inside the settings grid may shrink, so a wide table scrolls inside its card on phones. */
+.settings-grid > *, .settings-grid .card > * { min-width: 0; }

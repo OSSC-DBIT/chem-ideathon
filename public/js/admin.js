@@ -6,6 +6,7 @@
   let events = [];
   let currentTab = 'overview';
   let signedIn = false;
+  let knownSections = [];
   let statementLimitMb = 5;
 
   // Any 401 sends the admin back to the sign in form.
@@ -168,6 +169,7 @@
     if ($('#f-q').value.trim()) params.set('q', $('#f-q').value.trim());
     if ($('#f-event').value) params.set('event', $('#f-event').value);
     if ($('#f-status').value) params.set('status', $('#f-status').value);
+    if ($('#f-section').value) params.set('section', $('#f-section').value);
     return params;
   }
 
@@ -179,12 +181,24 @@
     select.value = keep;
   }
 
+  // The section filter offers the organisers' list plus any other section that is actually in use.
+  async function fillSectionFilter(registrations) {
+    const select = $('#f-section');
+    if (select.options.length === 1) knownSections = (await call('/api/admin/settings')).settings.sections;
+    const inUse = registrations.flatMap((r) => r.members.map((m) => m.section)).filter(Boolean);
+    const all = [...new Set([...knownSections, ...inUse, select.value].filter(Boolean))].sort();
+    const keep = select.value;
+    select.replaceChildren(el('option', { value: '' }, 'All sections'), ...all.map((x) => el('option', { value: x }, x)));
+    select.value = keep;
+  }
+
   async function loadRegistrations() {
     await ensureEvents();
     const { registrations } = await call(`/api/admin/registrations?${filterQuery()}`);
     const participants = registrations.reduce((sum, r) => sum + r.memberCount, 0);
     $('#reg-count').textContent = `${registrations.length} registration(s), ${participants} participant(s)`;
     $('#reg-empty').hidden = registrations.length > 0;
+    await fillSectionFilter(registrations);
     $('#reg-rows').replaceChildren(...registrations.map((r) =>
       el('tr', { className: 'clickable', tabIndex: 0, onclick: () => openDetail(r), onkeydown: (e) => { if (e.key === 'Enter') openDetail(r); } },
         el('td', { className: 'nowrap' }, el('strong', {}, r.code), el('small', {}, dateTime(r.createdAt))),
@@ -201,6 +215,7 @@
   $('#f-q').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(guard(loadRegistrations), 250); });
   $('#f-event').addEventListener('change', guard(loadRegistrations));
   $('#f-status').addEventListener('change', guard(loadRegistrations));
+  $('#f-section').addEventListener('change', guard(loadRegistrations));
 
   $$('[data-export]').forEach((button) => button.addEventListener('click', guard(async () => {
     const params = filterQuery();
@@ -282,10 +297,10 @@
               el('dt', {}, 'Screenshot'), el('dd', {}, !r.hasScreenshot ? 'None' : r.scanStatus === 'clean' ? 'Virus scan passed, re-encoded' : 'Not virus scanned (scanner was unavailable), re-encoded')),
             el('div', { className: 'card flat table-card' }, el('div', { className: 'table-scroll' },
               el('table', {},
-                el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Name'), el('th', {}, 'Roll number'), el('th', {}, 'Branch'), el('th', {}, 'Phone'))),
+                el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Name'), el('th', {}, 'Roll number'), el('th', {}, 'Branch'), el('th', {}, 'Section'), el('th', {}, 'Phone'))),
                 el('tbody', {}, ...r.members.map((m, i) => el('tr', {},
                   el('td', {}, String(i + 1)), el('td', {}, m.name, i === 0 ? el('small', {}, 'Leader') : null),
-                  el('td', {}, m.roll), el('td', {}, m.branch), el('td', {}, m.phone || '')))))))),
+                  el('td', {}, m.roll), el('td', {}, m.branch), el('td', {}, m.section || ''), el('td', {}, m.phone || '')))))))),
           el('div', {},
             el('p', { className: 'label' }, 'Payment screenshot'),
             r.hasScreenshot ? [
@@ -312,7 +327,7 @@
   async function openTeamEditor(reg) {
     await ensureEvents();
     const isNew = !reg;
-    const members = (reg ? reg.members : [{}]).map((m) => ({ name: m.name || '', roll: m.roll || '', branch: m.branch || '', phone: m.phone || '', listed: false }));
+    const members = (reg ? reg.members : [{}]).map((m) => ({ name: m.name || '', roll: m.roll || '', branch: m.branch || '', section: m.section || '', phone: m.phone || '', listed: false }));
 
     const problem = el('div', { className: 'alert error', role: 'alert', hidden: true });
     const eventSelect = el('select', { id: 'ed-eventId', disabled: !isNew },
@@ -387,6 +402,7 @@
         if (st) {
           m.name = st.name;
           m.branch = st.branch || m.branch;
+          m.section = st.section || m.section;
           if (!m.phone && st.phone) m.phone = st.phone;
           if (i === 0 && !leaderEmail.value.trim() && st.email) leaderEmail.value = st.email;
           setError(`m${i}-roll`, '');
@@ -428,6 +444,7 @@
             field('roll', 'Roll number', { maxLength: 20, autocapitalize: 'characters', autocomplete: 'off' }),
             field('name', 'Name', { maxLength: 60, autocomplete: 'off' }),
             field('branch', 'Branch', { maxLength: 40, autocomplete: 'off' }),
+            field('section', 'Section', { maxLength: 20, autocomplete: 'off', autocapitalize: 'characters' }),
             field('phone', i === 0 ? 'Phone' : 'Phone (optional)', { maxLength: 14, inputMode: 'numeric', autocomplete: 'off' })));
       }));
       repeatedRows = [];
@@ -436,7 +453,7 @@
     }
 
     addBtn.addEventListener('click', () => {
-      members.push({ name: '', roll: '', branch: '', phone: '', listed: false });
+      members.push({ name: '', roll: '', branch: '', section: '', phone: '', listed: false });
       draw();
       document.getElementById(`ed-m${members.length - 1}-roll`).focus();
     });
@@ -446,7 +463,7 @@
       clearErrors();
       const body = {
         eventId: Number(eventSelect.value), teamName: teamName.value, leaderEmail: leaderEmail.value, utr: utr.value, note: noteInput.value,
-        status: status.value, override, members: members.map(({ name, roll, branch, phone }) => ({ name, roll, branch, phone })),
+        status: status.value, override, members: members.map(({ name, roll, branch, section, phone }) => ({ name, roll, branch, section, phone })),
       };
       try {
         const r = await call(isNew ? '/api/admin/registrations' : `/api/admin/registrations/${reg.id}`, { method: isNew ? 'POST' : 'PUT', body });
@@ -533,6 +550,7 @@
       roll: input('roll', { maxLength: 20, autocapitalize: 'characters', readOnly: !isNew }),
       name: input('name', { maxLength: 60 }),
       branch: input('branch', { maxLength: 40 }),
+      section: input('section', { maxLength: 20, autocapitalize: 'characters' }),
       phone: input('phone', { maxLength: 14, inputMode: 'numeric' }),
       email: input('email', { type: 'email', maxLength: 120 }),
     };
@@ -546,9 +564,10 @@
         problem,
         row('roll', isNew ? 'Roll number' : 'Roll number (cannot be changed; remove and add again instead)'),
         row('name', 'Name'),
-        el('div', { className: 'grid2' }, row('branch', 'Branch'), row('phone', 'Phone (optional)')),
+        el('div', { className: 'grid2' }, row('branch', 'Branch'), row('section', 'Section')),
+        row('phone', 'Phone (optional)'),
         row('email', 'Email (needed for email verification)'),
-        isNew ? null : el('p', { className: 'hint' }, 'A corrected name or branch is also updated in the registrations this student is in.')),
+        isNew ? null : el('p', { className: 'hint' }, 'A corrected name, branch or section is also updated in the registrations this student is in.')),
       el('div', { className: 'dlg-foot' },
         el('button', { type: 'button', className: 'btn white', onclick: () => dialog.close() }, 'Cancel'),
         saveBtn));
@@ -795,7 +814,7 @@
     const stat = (cls, label, big, line) =>
       el('div', { className: `card stat ${cls}` }, el('p', { className: 'label' }, label), el('b', {}, String(big)), el('p', {}, line));
     $('#ro-stats').replaceChildren(
-      stat('bg-white', 'Students on the list', r.count, `${r.withPhone} with a phone, ${r.withEmail} with an email`),
+      stat('bg-white', 'Students on the list', r.count, `${r.withSection} with a section, ${r.withPhone} with a phone, ${r.withEmail} with an email`),
       stat(r.rosterRequired ? 'bg-green' : 'bg-orange', 'Registration check', r.rosterRequired ? 'ON' : 'OFF',
         r.rosterRequired ? 'Only listed students can register' : 'Anyone can type any roll number'));
     $('#ro-required').checked = r.rosterRequired;
@@ -812,7 +831,7 @@
     $('#ro-empty').hidden = r.students.length > 0;
     $('#ro-more').textContent = r.students.length >= 200 ? 'Showing the first 200. Use the search box to find a student.' : '';
     $('#ro-rows').replaceChildren(...r.students.map((s) => el('tr', {},
-      el('td', { className: 'nowrap' }, el('strong', {}, s.roll)), el('td', {}, s.name), el('td', {}, s.branch), el('td', {}, s.phone), el('td', {}, s.email),
+      el('td', { className: 'nowrap' }, el('strong', {}, s.roll)), el('td', {}, s.name), el('td', {}, s.branch), el('td', {}, s.section), el('td', {}, s.phone), el('td', {}, s.email),
       el('td', { className: 'nowrap' }, el('button', { type: 'button', className: 'btn sm', onclick: () => openStudentDialog(s) }, 'Edit'), ' ', el('button', { type: 'button', className: 'btn sm white', onclick: guard(async () => {
         const ok = await confirmBox({ title: 'Remove student?', message: `${s.name} (${s.roll}) will be taken off the list and will not be able to register.`, okText: 'Remove', danger: true });
         if (!ok) return;
@@ -928,6 +947,8 @@
     TEXT_SETTINGS.forEach((key) => { $(`#${key}`).value = settings[key] ?? ''; });
     $('#allowMultiEvent').checked = settings.allowMultiEvent;
     $('#branches').value = settings.branches.join('\n');
+    $('#sections').value = settings.sections.join('\n');
+    knownSections = settings.sections;
     syncSchedule();
   }
 
@@ -984,6 +1005,7 @@
       closesAt: fromLocalInput($('#closesAt').value),
       allowMultiEvent: $('#allowMultiEvent').checked,
       branches: $('#branches').value.split('\n'),
+      sections: $('#sections').value.split('\n'),
     };
     TEXT_SETTINGS.forEach((key) => { body[key] = $(`#${key}`).value; });
     fillSettings(await call('/api/admin/settings', { method: 'PUT', body }));

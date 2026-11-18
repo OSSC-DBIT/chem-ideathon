@@ -10,7 +10,7 @@ import { MAX_SCREENSHOT_BYTES, UploadError, decodeImageDataUrl, sanitiseImage, s
 import { audit } from './db.js';
 import { createCaptcha, verifyCaptcha } from './captcha.js';
 import { sealFile } from './vault.js';
-import { getStudent, maskEmail, maskName } from './roster.js';
+import { getStudent, maskEmail, maskName, tidySection } from './roster.js';
 import { mailConfigured, sendMailLater, messages } from './mailer.js';
 import { sendCode, checkCode, tokenValid, useToken, hasLiveChallenge, VerifyError } from './verify.js';
 
@@ -50,7 +50,7 @@ const insertReg = db.prepare(`
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 const insertMember = db.prepare(
-  'INSERT INTO members (registration_id, position, name, roll, branch, phone) VALUES (?, ?, ?, ?, ?, ?)',
+  'INSERT INTO members (registration_id, position, name, roll, branch, phone, section) VALUES (?, ?, ?, ?, ?, ?, ?)',
 );
 const findStatus = db.prepare(`
   SELECT r.code, r.team_name, r.member_count, r.amount, r.status, r.reject_reason, r.created_at, e.title AS event_title
@@ -74,6 +74,7 @@ router.get('/public', (req, res) => {
     emailVerification: settings.emailVerification && mailConfigured,
     maxScreenshotMb: limits.screenshotMb,
     branches: settings.branches,
+    sections: settings.sections,
     contactName: settings.contactName,
     contactPhone: settings.contactPhone,
     registration: registrationState(settings),
@@ -143,6 +144,7 @@ function validate(body, event, settings) {
       roll: clean(raw?.roll, 20).toUpperCase().replace(/\s/g, ''),
       branch: clean(raw?.branch, 40),
       phone: cleanPhone(raw?.phone),
+      section: tidySection(raw?.section),
     };
     let listed = null;
     if (!ROLL_RE.test(m.roll)) errors[`m${i}-roll`] = 'Enter a valid roll number.';
@@ -160,6 +162,9 @@ function validate(body, event, settings) {
       if (!NAME_RE.test(m.name)) errors[`m${i}-name`] = 'Enter the full name (letters only).';
       if (!settings.branches.includes(m.branch)) errors[`m${i}-branch`] = 'Select a branch.';
     }
+    // Section: the student list wins when it has one; otherwise the student picks from the organisers' list.
+    if (listed?.section) m.section = listed.section;
+    else if (!settings.sections.includes(m.section)) errors[`m${i}-section`] = 'Select the section.';
     if (i === 0 && listed && settings.matchLeaderPhone && listed.phone && PHONE_RE.test(m.phone) && listed.phone !== m.phone) {
       errors['m0-phone'] = 'This phone number does not match the one the college has for this roll number.';
     }
@@ -338,7 +343,7 @@ router.post(
           data.members.length, amount, data.utr, fileName, new Date().toISOString(), scanStatus,
         );
         const regId = Number(result.lastInsertRowid);
-        data.members.forEach((m, i) => insertMember.run(regId, i, m.name, m.roll, m.branch, m.phone));
+        data.members.forEach((m, i) => insertMember.run(regId, i, m.name, m.roll, m.branch, m.phone, m.section));
         return { code: regCode, status: 'pending', teamName: data.teamName, replay: false };
       });
 
@@ -404,7 +409,7 @@ router.post(
         if (!s) { unknown[`m${i}-roll`] = NOT_LISTED; return null; }
         // Only a masked email goes back to the browser, and only for the leader's own row.
         // Names and emails leave the server masked. The real values are filled in from the list at submit.
-        const shown = { name: maskName(s.name), branch: s.branch };
+        const shown = { name: maskName(s.name), branch: s.branch, section: s.section };
         return i === 0 && s.email ? { ...shown, email: maskEmail(s.email) } : shown;
       });
     }
