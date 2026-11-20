@@ -5,7 +5,7 @@ labels: bug
 ---
 
 <!-- Security problem? Do not post it here. See SECURITY.md. -->
-<!-- Do not paste real names, roll numbers, phone numbers or payment screenshots. -->
+<!-- Do not paste real names, ERP IDs, phone numbers or payment screenshots. -->
 
 **What happened**
 

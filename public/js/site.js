@@ -18,6 +18,7 @@
   let captchaId = '';     // id of the captcha image currently shown
   let liveKeys = [];      // fields currently flagged by the live "already registered" check
   let liveSeq = 0;
+  let checkedRolls = [];  // the ERP IDs as they were when the server last checked them
   let repeatedKeys = [];  // roll fields currently flagged as repeated within the team
   let emailFromList = false; // the leader's email is supplied by the student list
   let verifyToken = '';      // proof from the server that the leader's email was verified
@@ -33,6 +34,7 @@
     !ev.teamBased ? 'Solo' : ev.minMembers === ev.maxMembers ? `Team of ${ev.minMembers}` : `Team of ${ev.minMembers} to ${ev.maxMembers}`;
   const slotsLeft = (ev) => (ev.maxTeams > 0 ? Math.max(ev.maxTeams - ev.taken, 0) : null);
   const canRegister = (ev) => ev.isOpen && !ev.full;
+  const HALF = { first: '1st half', second: '2nd half' };
   const blank = () => ({ name: '', roll: '', branch: '', section: '', phone: '', sectionFromList: false, sectionOther: false });
 
   // -------------------------------------------------------------------------
@@ -51,15 +53,21 @@
       $('#contact').textContent = `Questions? Contact ${[info.contactName, info.contactPhone].filter(Boolean).join(', ')}.`;
       $('#contact').hidden = false;
     }
-    const multi = info.allowMultiEvent;
-    $('#rule-step').textContent = multi ? 'One registration covers one team in one event.' : 'Each student can take part in one event, so choose well.';
-    $('#rule-hint').textContent = multi
-      ? 'Want to join more than one event? Finish this registration, then start another.'
-      : 'Each student can take part in one event only. Check with your teammates that none of them is in another team.';
-    $('#t-again').textContent = multi ? 'Register for another event' : 'Register another team';
+    const rule = info.participation;
+    $('#rule-step').textContent = {
+      perHalf: 'The day has two halves. You can join one event in each half.',
+      one: 'Each student can take part in one event, so choose well.',
+      any: 'One registration covers one team in one event.',
+    }[rule];
+    $('#rule-hint').textContent = {
+      perHalf: 'You can take part in one event in the 1st half and one in the 2nd half. Each event needs its own registration. Check that none of your teammates is already in another team at the same time.',
+      one: 'Each student can take part in one event only. Check with your teammates that none of them is in another team.',
+      any: 'Want to join more than one event? Finish this registration, then start another.',
+    }[rule];
+    $('#t-again').textContent = rule === 'one' ? 'Register another team' : 'Register for another event';
     $('#how-team').textContent = info.emailVerification
-      ? 'The team leader adds every member by roll number, then confirms their email with a code we send.'
-      : "The team leader fills in every member's name, roll number and section.";
+      ? 'The team leader adds every member by ERP ID, then confirms their email with a code we send.'
+      : "The team leader fills in every member's name, ERP ID and section.";
     const titles = info.events.map((ev) => ev.title);
     const run = [...titles, ...titles, ...titles, ...titles];
     $('#marquee').replaceChildren(...[...run, ...run].map((t) => el('span', {}, t)));
@@ -71,7 +79,21 @@
       list.replaceChildren(el('p', { className: 'muted' }, 'Events will be announced soon.'));
       return;
     }
-    list.replaceChildren(...info.events.map((ev, i) => {
+    // With halves set, the cards are grouped: 1st half, 2nd half, then events with no half yet.
+    const grouped = info.events.some((ev) => ev.slot);
+    const order = grouped ? ['first', 'second', ''] : [''];
+    const cards = [];
+    for (const slot of order) {
+      const inSlot = info.events.map((ev, i) => [ev, i]).filter(([ev]) => !grouped || (ev.slot || '') === slot);
+      if (!inSlot.length) continue;
+      if (grouped) cards.push(el('h3', { className: 'half-title' }, HALF[slot] || 'Time to be announced'));
+      cards.push(...inSlot.map(([ev, i]) => eventCard(ev, i)));
+    }
+    list.replaceChildren(...cards);
+  }
+
+  function eventCard(ev, i) {
+    {
       const left = slotsLeft(ev);
       const unit = ev.teamBased ? 'team' : 'seat';
       const meter = el('div', { className: 'meter', role: 'img', ariaLabel: left == null ? '' : `${ev.taken} of ${ev.maxTeams} ${unit}s taken` }, el('i'));
@@ -87,6 +109,7 @@
         el('h3', {}, ev.title),
         el('p', {}, ev.description),
         el('div', { className: 'meta' },
+          ev.slot ? el('span', { className: 'badge dark' }, HALF[ev.slot]) : null,
           el('span', { className: 'badge' }, teamSizeText(ev)),
           el('span', { className: 'badge' }, `${rupees(ev.fee)} per head`)),
         el('div', { className: 'foot' },
@@ -94,7 +117,7 @@
             ? el('span', { className: 'slots' }, 'Open entry')
             : el('div', {}, el('span', { className: 'slots' }, left === 0 ? `No ${unit}s left` : `${left} of ${ev.maxTeams} ${unit}s left`), meter),
           action));
-    }));
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -115,7 +138,7 @@
     $('#countdown').hidden = true;
     if (reg.state === 'upcoming') {
       $('#reg-closed-title').textContent = 'Registrations open soon';
-      $('#reg-closed-text').textContent = `Opens on ${dateTime(reg.opensAt)}. Get your team and roll numbers ready.`;
+      $('#reg-closed-text').textContent = `Opens on ${dateTime(reg.opensAt)}. Get your team and ERP IDs ready.`;
       const tick = () => {
         const ms = Date.parse(reg.opensAt) - Date.now();
         if (ms <= 0) { clearInterval(countdownTimer); load(); return; }
@@ -145,6 +168,7 @@
           el('strong', {}, ev.title),
           ev.description,
           el('span', { className: 'meta' },
+            ev.slot ? el('span', { className: 'badge dark' }, HALF[ev.slot]) : null,
             el('span', { className: 'badge' }, teamSizeText(ev)),
             el('span', { className: 'badge' }, `${rupees(ev.fee)} per head`),
             !ev.isOpen ? el('span', { className: 'badge dark' }, 'Closed')
@@ -177,24 +201,28 @@
     if (locked) {
       input.readOnly = true;
       input.tabIndex = -1;
-      input.placeholder = 'Filled in from the roll number';
+      input.placeholder = 'Filled in from the ERP ID';
       input.classList.add('locked');
     }
     input.value = members[i][key];
     input.addEventListener('input', () => {
       members[i][key] = input.value;
       saveDraft();
-      setFieldError(id, ''); // the old message no longer describes what is typed
+      // The old message no longer describes what is typed. An "already registered" message from the
+      // server stays while the ERP ID is still the one it was given for.
+      if (key !== 'roll' || tidyRoll(input.value) !== checkedRolls[i]) setFieldError(id, '');
       if (key === 'roll') markRepeatedRolls();
     });
     if (key === 'roll') {
       input.addEventListener('change', () => {
-        // Show the roll number the way it will be stored: capitals, no spaces.
+        // Show the ERP ID the way it will be stored: capitals, no spaces.
         members[i].roll = tidyRoll(input.value);
         input.value = members[i].roll;
         markRepeatedRolls();
-        liveCheck();
       });
+      // Checked every time the field is left, not only when its value changed: retyping the same
+      // ERP ID must not make an "already registered" message go away.
+      input.addEventListener('blur', () => { if (tidyRoll(input.value)) liveCheck(); });
     }
     const err = el('p', { className: 'err' });
     err.dataset.err = id;
@@ -210,7 +238,7 @@
       : `${event.title} needs ${event.minMembers === event.maxMembers ? event.minMembers : `${event.minMembers} to ${event.maxMembers}`} members, including the leader. The leader is the contact person for the team.`;
     $('#team-name-field').hidden = solo;
     if (info.rosterRequired) {
-      $('#team-rule').textContent += ' Type each roll number and the name is filled in from the college student list. Names are partly hidden for privacy; check that the visible letters match your teammate.';
+      $('#team-rule').textContent += ' Type each ERP ID and the name is filled in from the college student list. Names are partly hidden for privacy; check that the visible letters match your teammate.';
     }
 
     sectionSync = [];
@@ -221,7 +249,7 @@
           el('strong', {}, solo ? 'Participant' : i === 0 ? 'Team leader' : `Member ${i + 1}`),
           removable && el('button', { type: 'button', className: 'btn sm red', onclick: () => { members.splice(i, 1); liveKeys = []; renderTeam(); saveDraft(); liveCheck(); } }, 'Remove')),
         el('div', { className: 'grid2' },
-          memberField(i, 'roll', 'Roll number', { maxLength: 20, autocapitalize: 'characters', autocomplete: 'off' }),
+          memberField(i, 'roll', 'ERP ID', { maxLength: 20, autocapitalize: 'characters', autocomplete: 'off' }),
           memberField(i, 'name', 'Full name', { maxLength: 60, autocomplete: i === 0 ? 'name' : 'off' }),
           memberField(i, 'branch', 'Branch'),
           sectionField(i),
@@ -242,7 +270,7 @@
   const tidyRoll = (value) => String(value || '').trim().toUpperCase().replace(/\s/g, '');
 
   /**
-   * Flags a roll number that is already used by an earlier member of this same team, the moment it
+   * Flags an ERP ID that is already used by an earlier member of this same team, the moment it
    * is typed, and clears the flag the moment it is fixed. Returns true when there are none.
    */
   function markRepeatedRolls() {
@@ -256,16 +284,17 @@
     });
     repeatedKeys.filter((key) => !found.some(([k]) => k === key)).forEach((key) => setFieldError(key, ''));
     found.forEach(([key, other]) => setFieldError(key,
-      `This is the same roll number as ${other === 0 ? 'the team leader' : `member ${other + 1}`}. Each member needs their own roll number.`));
+      `This is the same ERP ID as ${other === 0 ? 'the team leader' : `member ${other + 1}`}. Each member needs their own ERP ID.`));
     repeatedKeys = found.map(([key]) => key);
     return found.length === 0;
   }
 
-  // Runs when a roll number or the team name changes: flags anyone who is already registered,
+  // Runs when an ERP ID or the team name changes: flags anyone who is already registered,
   // and a team name that is taken, right in the field instead of at the end.
   async function liveCheck() {
     if (!event || info.registration.state !== 'open') return;
     const seq = ++liveSeq;
+    const sent = members.map((m) => tidyRoll(m.roll));
     let fields = {};
     let students = null;
     try {
@@ -276,6 +305,7 @@
       students = err.data?.students;
     }
     if (seq !== liveSeq) return; // a newer check is already on its way
+    checkedRolls = sent;
     applyStudents(students);
     liveKeys.filter((key) => !(key in fields)).forEach((key) => setFieldError(key, ''));
     liveKeys = Object.keys(fields).filter((key) => key === 'teamName' || /^m\d+-roll$/.test(key));
@@ -351,14 +381,14 @@
       m.sectionFromList = true;
       m.sectionOther = false;
     } else if (m.sectionFromList) {
-      m.section = ''; // it belonged to the previous roll number
+      m.section = ''; // it belonged to the previous ERP ID
       m.sectionFromList = false;
     }
     if (sectionSync[i]) sectionSync[i]();
     if (m.section) setFieldError(`m${i}-section`, '');
   }
 
-  // With the student list on, the server tells us who each roll number belongs to.
+  // With the student list on, the server tells us who each ERP ID belongs to.
   function applyStudents(students) {
     if (!info.rosterRequired || !Array.isArray(students)) return;
     // Leader's email: when the college has one on file it is used as is, shown masked.
@@ -516,7 +546,7 @@
       const stageSend = el('form', { novalidate: true, className: 'v-stage' },
         el('p', {}, 'To confirm it is really you, we will email a 6 digit code to ', el('strong', {}, shownEmail), '.'),
         emailFromList
-          ? el('p', { className: 'hint' }, 'This is the email the college has for this roll number. Not your email any more? Contact the coordinator.')
+          ? el('p', { className: 'hint' }, 'This is the email the college has for this ERP ID. Not your email any more? Contact the coordinator.')
           : el('p', { className: 'hint' }, 'Wrong address? Close this box and correct it.'),
         el('div', { className: 'captcha-img' }, capImg, el('button', { type: 'button', className: 'btn sm white', onclick: () => { say(''); loadCap(); } }, 'New image')),
         el('div', { className: 'field' }, el('label', { htmlFor: 'v-captcha' }, 'Type the 5 digits you see'), capInput),
@@ -689,8 +719,8 @@
         const roll = m.roll.trim().toUpperCase().replace(/\s/g, '');
         const phone = m.phone.replace(/[\s-]/g, '').replace(/^(\+91|0)/, '');
         if (m.name.trim().length < 2 && !info.rosterRequired) errors[`m${i}-name`] = 'Enter the full name.';
-        if (!/^[A-Z0-9][A-Z0-9/-]{2,19}$/.test(roll)) errors[`m${i}-roll`] = 'Enter a valid roll number.';
-        else if (rolls.has(roll)) errors[`m${i}-roll`] = 'This roll number is repeated in your team. Each member needs their own roll number.';
+        if (!/^[A-Z0-9][A-Z0-9/-]{2,19}$/.test(roll)) errors[`m${i}-roll`] = 'Enter a valid ERP ID.';
+        else if (rolls.has(roll)) errors[`m${i}-roll`] = 'This ERP ID is repeated in your team. Each member needs their own ERP ID.';
         rolls.add(roll);
         if (!m.branch && !info.rosterRequired) errors[`m${i}-branch`] = 'Select a branch.';
         if (!String(m.section || '').trim()) errors[`m${i}-section`] = m.sectionOther ? 'Type your section.' : 'Select the section.';
@@ -726,6 +756,7 @@
     $('#back').hidden = n === 1;
     $('#next').hidden = n === 4;
     $('#submit').hidden = n !== 4;
+    if (n === 2 && members.some((m) => m.roll.trim())) liveCheck();
     if (n === 3) renderPayment();
     if (n === 4) {
       renderReview();
@@ -769,7 +800,7 @@
 
   // Enter inside a field must not submit the whole form from an early step. It behaves like
   // "next field" instead, and on the last field of a step it moves to the Continue button.
-  // (Leaving the roll number field this way also runs the "already registered" check.)
+  // (Leaving the ERP ID field this way also runs the "already registered" check.)
   wizard.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' || e.isComposing || step === 4) return;
     const field = e.target;
@@ -913,8 +944,8 @@
     const out = $('#status-result');
     const code = $('#s-code').value.trim().toUpperCase();
     const phone = $('#s-phone').value.replace(/[\s-]/g, '').replace(/^(\+91|0)/, '');
-    if (!/^IDT26-[A-Z0-9]{6}$/.test(code)) {
-      out.replaceChildren(el('div', { className: 'alert error' }, 'Enter the registration ID exactly as shown on your ticket, for example IDT26-K7M2QX.'));
+    if (!/^IDT26-[A-Z0-9]{3,12}$/.test(code)) {
+      out.replaceChildren(el('div', { className: 'alert error' }, 'Enter the registration ID exactly as shown on your ticket, for example IDT26-PP001.'));
       return;
     }
     if (!/^[6-9]\d{9}$/.test(phone)) {

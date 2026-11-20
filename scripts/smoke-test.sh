@@ -59,9 +59,9 @@ check "precheck: leader taken" 'You are already registered for Poster Presentati
 check "precheck: member taken" 'This student is already registered for Poster Presentation' "$(precheck 3 Fresh '"RZ1","RA3"')"
 check "precheck: same event"   '"m1-roll"'                 "$(precheck 1 Fresh '"RZ1","RA2"')"
 check "precheck: repeated roll"  'more than once in your team' "$(precheck 2 Fresh '"RZ1","rz 1"')"
-check "precheck: flags the second one" '"m1-roll":"This roll number is repeated' "$(precheck 2 Fresh '"RZ1","RZ2","RZ1"' | sed 's/m2-roll/m1-roll/')"
+check "precheck: flags the second one" '"m1-roll":"This ERP ID is repeated' "$(precheck 2 Fresh '"RZ1","RZ2","RZ1"' | sed 's/m2-roll/m1-roll/')"
 check "precheck: team name"    'team name is taken'        "$(precheck 1 ALPHA '"RZ1","RZ2"')"
-check "member in two teams"    'A student can join only one event and one team' "$(reg "$(team 1 Second A 232323232323 5)")"
+check "member in two teams"    'A student cannot be in two teams' "$(reg "$(team 1 Second A 232323232323 5)")"
 check "roll repeated in team"  'repeated in your team'     "$(reg "$(team 3 Twin Q 343434343434 5 | sed 's/"roll":"RQ2"/"roll":"RQ1"/')")"
 check "retry is idempotent"    "\"code\":\"$CODE\""           "$(reg "$(team 1 Alpha A 111111111111 5)")"
 check "one student one event"  'already registered for Poster Presentation' "$(reg "$(team 2 Alpha A 444444444444 6)")"
@@ -105,9 +105,9 @@ check "reject"                 '"ok":true'                 "$(admin POST /regist
 check "rejected is final"      'cannot be reopened'        "$(admin POST /registrations/2/decision '{"status":"approved"}')"
 check "status shows reason"    'Amount does not match'     "$(post /api/status "{\"code\":\"$(admin GET '/registrations?status=rejected' | sed 's/.*"code":"\([^"]*\)".*/\1/')\",\"phone\":\"9876543210\"}")"
 check "rejected frees slot"    '"status":"pending"'        "$(reg "$(team 2 Alpha E 444444444444 6)")"
-check "allow multi event"      '"allowMultiEvent":true'    "$(admin PUT /settings '{"allowMultiEvent":true}')"
+check "any number of events"   '"participation":"any"'     "$(admin PUT /settings '{"participation":"any"}')"
 check "multi event allowed"    '"status":"pending"'        "$(reg "$(team 3 Alpha A 121212121212 5)")"
-check "back to one event"      '"allowMultiEvent":false'   "$(admin PUT /settings '{"allowMultiEvent":false}')"
+check "back to one per half"   '"participation":"perHalf"' "$(admin PUT /settings '{"participation":"perHalf"}')"
 check "malformed json"         'Invalid request'           "$(post /api/status '{bad')"
 check "wrong content type"     'Unsupported content type'  "$(curl -s -X POST $B/api/status -d 'x=1')"
 check "unknown api route"      'Not found'                 "$(curl -s $B/api/nope)"
@@ -118,7 +118,7 @@ check "bulk reject needs reason" 'Give a reason'           "$(admin POST /regist
 BEFORE=$(admin GET '/registrations?status=pending' | grep -o '"id":[0-9]*,"code"' | head -1 | grep -o '[0-9]*')
 check "bulk reject fake entry" '"rejected":1'              "$(admin POST /registrations/bulk-reject "{\"ids\":[$BEFORE],\"reason\":\"Not in statement\"}")"
 # ---- student list ----
-ROSTER='Roll number,Name,Branch,Section,Phone,Email ID\nRT1,Asha Rao,CSE,Sec A,9876500001,Asha.Rao@dbit.example\nRT2,Vikram N,ECE,b,,\nRT3,Divya S,ISE,A,,\nRT4,Rahul K,CSE,C,,\nRT5,Meera P,CSE,A,,\nbad roll!,Nobody,CSE,A,,\nRT2,Duplicate,CSE,A,,'
+ROSTER='ERP ID,Name,Branch,Section,Phone,Email ID\nRT1,Asha Rao,CSE,Sec A,9876500001,Asha.Rao@dbit.example\nRT2,Vikram N,ECE,b,,\nRT3,Divya S,ISE,A,,\nRT4,Rahul K,CSE,C,,\nRT5,Meera P,CSE,A,,\nbad roll!,Nobody,CSE,A,,\nRT2,Duplicate,CSE,A,,'
 check "roster needs a list"    'Upload the student list first' "$(admin PUT /settings '{"rosterRequired":true}')"
 check "roster import"          '"imported":5,"skipped":2'  "$(admin POST /students/import "{\"kind\":\"text\",\"mode\":\"replace\",\"content\":\"$ROSTER\"}")"
 check "roster bad file"        'No students were found'    "$(admin POST /students/import '{"kind":"text","content":"hello\nworld"}')"
@@ -139,7 +139,7 @@ check "remove student"         '"count":4'                 "$(admin DELETE /stud
 check "clear list turns it off" '"count":0,"withPhone":0,"withEmail":0,"withSection":0,"rosterRequired":false' "$(admin DELETE /students '{}')"
 # ---- email verification ----
 MAILS="$DATA_DIR/mails.jsonl"
-VROSTER='Roll number,Name,Branch,Section,Email\nRV1,Leela Nair,CSE,A,leela.nair@dbit.example\nRV2,Arjun M,ECE,B,\nRV3,Sana K,ISE,A,\nRV4,Tarun P,CSE,C,\nRV5,Nisha R,CSE,A,'
+VROSTER='ERP ID,Name,Branch,Section,Email\nRV1,Leela Nair,CSE,A,leela.nair@dbit.example\nRV2,Arjun M,ECE,B,\nRV3,Sana K,ISE,A,\nRV4,Tarun P,CSE,C,\nRV5,Nisha R,CSE,A,'
 admin POST /students/import "{\"kind\":\"text\",\"mode\":\"replace\",\"content\":\"$VROSTER\"}" > /dev/null
 check "verification on"        '"emailVerification":true'  "$(admin PUT /settings '{"rosterRequired":true,"emailVerification":true,"matchLeaderPhone":false}')"
 check "public shows verify"    '"emailVerification":true'  "$(curl -s $B/api/public)"
@@ -176,7 +176,7 @@ check "organiser adds a team"   '"source":"admin"'           "$MADD"
 check "added team is approved"  '"status":"approved"'        "$MADD"
 check "amount worked out"       '"amount":250'               "$MADD"
 check "no screenshot needed"    '"hasScreenshot":false'      "$MADD"
-check "roll numbers tidied"     '"roll":"RM1"'               "$MADD"
+check "ERP IDs tidied"     '"roll":"RM1"'               "$MADD"
 check "screenshot says why"     'added by an organiser'      "$(admin GET /registrations/$MID/screenshot)"
 check "taken roll names the team" 'Already in team \"Manual Team\"' "$(admin POST /registrations "$(mteam 'Copycat' "$(mm 'Mona A' RM1 9876522222),$(mm 'New One' RN2),$(mm 'New Two' RN3),$(mm 'New Three' RN4),$(mm 'New Four' RN5)")")"
 check "taken team name"         'already uses this name'     "$(admin POST /registrations "$(mteam 'manual team' "$(mm 'N A' RN1 9876522223),$(mm 'N B' RN2),$(mm 'N C' RN3),$(mm 'N D' RN4),$(mm 'N E' RN5)")")"
@@ -212,7 +212,7 @@ check "export marks hand added" 'Organiser'                  "$(admin GET '/expo
 # ---- single students ----
 check "add one student"         '"name":"Solo Kid"'          "$(admin POST /students '{"roll":"rs1","name":"Solo Kid","branch":"CSE","email":"solo@dbit.example"}')"
 check "add: already listed"     'already on the list'        "$(admin POST /students '{"roll":"RS1","name":"Again"}')"
-check "add: bad roll"           'valid roll number'          "$(admin POST /students '{"roll":"!!","name":"Bad"}')"
+check "add: bad roll"           'valid ERP ID'          "$(admin POST /students '{"roll":"!!","name":"Bad"}')"
 check "add: bad email"          'valid email'                "$(admin POST /students '{"roll":"RS2","name":"Bad Mail","email":"nope"}')"
 check "edit a student"          '"name":"Solo Kid Renamed","branch":"ECE","phone":"9876533333"' "$(admin PUT /students/rs1 '{"name":"Solo Kid Renamed","branch":"ECE","phone":"9876533333","email":""}')"
 check "edit: unknown student"   'not on the list'            "$(admin PUT /students/NOPE1 '{"name":"Nobody"}')"
@@ -269,6 +269,63 @@ check "no list section: must be picked" 'Select the section' "$(reg "$NOSEC")"
 admin PUT /settings '{"rosterRequired":false}' > /dev/null
 admin DELETE /students '{}' > /dev/null
 
+# ---- registration IDs with an event code ----
+check "id has the event code and a number" 'IDT26-PP001'    "$CODE"
+check "status lookup takes the new id" '"code":"IDT26-PP001"' "$(post /api/status "{\"code\":\"idt26-pp001\",\"phone\":\"9876543210\"}")"
+check "second event counts on its own" '"code":"IDT26-TQ00'  "$(admin GET '/registrations?event=2')"
+check "hand added team gets the next id" '"code":"IDT26-CF0' "$(admin GET '/registrations?q=Manual')"
+check "codes come from the title" '"code":"TB"'              "$(admin GET /events)"
+check "event code already in use" 'already uses the code PP' "$(admin POST /events '{"title":"Paper Plane","teamBased":false,"maxTeams":0,"fee":50,"code":"pp"}')"
+check "event code must be letters" '2 to 4 capital letters'  "$(admin POST /events '{"title":"Bad Code","teamBased":false,"maxTeams":0,"fee":50,"code":"1"}')"
+PARTY=$(admin POST /events '{"title":"Poster Party","teamBased":false,"maxTeams":0,"fee":50}')
+check "a clashing code is avoided" 'yes'                     "$(echo "$PARTY" | grep -q '"title":"Poster Party"[^}]*"code":"PO"' && echo yes || echo no)"
+PARTY_ID=$(echo "$PARTY" | grep -o '"id":[0-9]*,"title":"Poster Party"' | grep -o '[0-9]*' | head -1)
+
+# ---- two halves: one event in each half ----
+# Fetches an event, changes its half, and prints the body for PUT.
+evslot() {
+  admin GET /events > "$DATA_DIR/ev.json"
+  node -e "const e=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).events.find((x)=>x.id==process.argv[2]);e.slot=process.argv[3];process.stdout.write(JSON.stringify(e))" "$DATA_DIR/ev.json" "$1" "$2"
+}
+check "set an event's half"     'yes'                        "$(admin PUT /events/1 "$(evslot 1 first)" | grep -q '"id":1,[^}]*"slot":"first"' && echo yes || echo no)"
+admin PUT /events/2 "$(evslot 2 second)" > /dev/null
+admin PUT /events/3 "$(evslot 3 first)" > /dev/null
+admin PUT /events/4 "$(evslot 4 second)" > /dev/null
+admin PUT /events/5 "$(evslot 5 second)" > /dev/null
+check "codes survive an edit"   '"code":"PP"'                "$(admin GET /events)"
+check "public page shows halves" '"slot":"second"'           "$(curl -s $B/api/public)"
+check "rule is one per half"    '"participation":"perHalf"'  "$(curl -s $B/api/public)"
+HALF1=$(reg "$(team 1 Halves H 818181818181 5)")
+check "register in the 1st half" '"code":"IDT26-PP002"'      "$HALF1"
+check "same half is blocked"    'already registered for Poster Presentation (1st half). A student can join one event in each half.' "$(precheck 3 Fresh '"RH1","RZ8"')"
+check "other half is allowed"   '"ok":true'                  "$(precheck 2 Fresh '"RH1","RH2"')"
+check "no half set counts as all day" 'already registered for Poster Presentation (1st half)' "$(precheck $PARTY_ID Fresh '"RH1"')"
+check "register in the 2nd half" '"status":"pending"'        "$(reg "$(team 2 Halves H 828282828282 6)")"
+check "a third event is blocked" 'already registered for Technical & General Quiz (2nd half)' "$(precheck 5 Fresh '"RH1","RZ8"')"
+check "summary names the rule"  'already registered for an event at the same time. A student can join one event in each half.' "$(precheck 5 Fresh '"RH1","RZ8"')"
+check "admin editor uses the same rule" 'Technical & General Quiz (2nd half)' "$(admin POST /registrations "$(mteam 'Half Clash' "$(mm 'Hema A' RH1 9876522299),$(mm 'New B' RZ6),$(mm 'New C' RZ7),$(mm 'New D' RZ8),$(mm 'New E' RZ9)" approved '' true | sed 's/"eventId":3/"eventId":5/')")"
+check "rule: one event only"    '"participation":"one"'      "$(admin PUT /settings '{"participation":"one"}')"
+check "one only: other half is blocked too" 'A student can join only one event' "$(precheck 1 Fresh '"RH6","RZ8"')"
+check "unknown rule refused"    'Choose how many events'     "$(admin PUT /settings '{"participation":"lots"}')"
+admin PUT /settings '{"participation":"perHalf"}' > /dev/null
+check "back to one per half"    '"ok":true'                  "$(precheck 1 Fresh '"RH6","RZ8"')"
+admin DELETE /events/$PARTY_ID '{}' > /dev/null
+
+# ---- filters: half and branch, in the list and in exports ----
+check "mixed branch team"       '"status":"pending"'         "$(reg "$(team 5 Mixed Q 838383838383 5 | sed 's/"roll":"RQ2","branch":"CSE"/"roll":"RQ2","branch":"ECE"/')")"
+check "list shows the half"     '"eventSlot":"first"'        "$(admin GET '/registrations?q=Halves&event=1')"
+check "filter by half"          '"teamName":"Mixed"'         "$(admin GET '/registrations?half=second')"
+check "half filter leaves the other half out" 'no'           "$(admin GET '/registrations?half=second' | grep -q '"eventSlot":"first"' && echo yes || echo no)"
+check "filter by branch"        '"teamName":"Mixed"'         "$(admin GET '/registrations?branch=ece')"
+check "branch filter leaves others out" 'no'                 "$(admin GET '/registrations?branch=ece' | grep -q '"teamName":"Halves"' && echo yes || echo no)"
+check "export has a half column" '"Reg ID","Event","Half","Team"' "$(admin GET '/export?format=csv&layout=participants&q=Mixed' | head -1)"
+check "export shows the half"   '"Treasure Hunt + Bounty","2nd half"' "$(admin GET '/export?format=csv&layout=participants&q=Mixed')"
+check "branch export keeps that branch" '"RQ2","ECE"'        "$(admin GET '/export?format=csv&layout=participants&branch=ECE&q=Mixed')"
+check "branch export drops the rest" 'no'                    "$(admin GET '/export?format=csv&layout=participants&branch=ECE&q=Mixed' | grep -q '"RQ1"' && echo yes || echo no)"
+check "team export keeps the whole team" '5'                 "$(admin GET '/export?format=csv&layout=teams&branch=ECE&q=Mixed' | grep -o 'Student [AB] (RQ[0-9]' | wc -l | tr -d ' ')"
+check "event and half together" 'no'                         "$(admin GET '/registrations?event=1&half=second' | grep -q '"teamName"' && echo yes || echo no)"
+check "team export has a half column" '"Reg ID","Event","Half","Team","Members"' "$(admin GET '/export?format=csv&layout=teams&half=first' | head -1)"
+
 # ---- organiser accounts ----
 check "weak organiser password" 'at least 12 characters'   "$(admin POST /organisers '{"username":"priya","password":"short"}')"
 check "bad organiser username" 'Usernames are 3 to 30'     "$(admin POST /organisers '{"username":"P R","password":"a-long-enough-password"}')"
@@ -296,9 +353,11 @@ check "removed organiser cannot sign in" 'Wrong username'  "$(post /api/admin/lo
 check "csv export"             'Reg ID'                    "$(admin GET '/export?format=csv&layout=participants&status=approved')"
 check "xlsx export"            'PK'                        "$(admin GET '/export?format=xlsx' | head -c 2)"
 check "add event"              '"title":"Debate"'          "$(admin POST /events '{"title":"Debate","teamBased":true,"minMembers":2,"maxMembers":3,"maxTeams":1,"fee":50}')"
+DEBATE=$(admin GET /events | grep -o '"id":[0-9]*,"title":"Debate"' | grep -o '[0-9]*' | head -1)
+check "one word title gets a code" 'yes'                     "$(admin GET /events | grep -q '"title":"Debate"[^}]*"code":"D[A-Z0-9]*"' && echo yes || echo no)"
 check "bad event"              'cannot be more'            "$(admin POST /events '{"title":"X1","teamBased":true,"minMembers":5,"maxMembers":3,"maxTeams":0,"fee":50}')"
-check "capacity ok"            '"status":"pending"'        "$(reg "$(team 6 One K 777777777777 2)")"
-check "capacity full"          'is full'                   "$(reg "$(team 6 Two L 888888888888 2)")"
+check "capacity ok"            '"status":"pending"'        "$(reg "$(team $DEBATE One K 777777777777 2)")"
+check "capacity full"          'is full'                   "$(reg "$(team $DEBATE Two L 888888888888 2)")"
 check "close registrations"    '"state":"closed"'          "$(admin PUT /settings '{"regMode":"closed"}')"
 check "closed blocks register" 'Registrations are closed'  "$(reg "$(team 3 Late Z 999999999999 5)")"
 check "schedule future"        '"state":"upcoming"'        "$(admin PUT /settings '{"regMode":"scheduled","opensAt":"2099-01-01T00:00:00Z","closesAt":""}')"

@@ -7,6 +7,8 @@
   let currentTab = 'overview';
   let signedIn = false;
   let knownSections = [];
+  let knownBranches = [];
+  const HALF = { first: '1st half', second: '2nd half' };
   let statementLimitMb = 5;
 
   // Any 401 sends the admin back to the sign in form.
@@ -103,7 +105,7 @@
     showState(o.registration);
     $('#upi-warning').hidden = o.upiConfigured;
     $('#roster-text').textContent = o.roster.count === 0
-      ? 'No student list has been uploaded yet. Without it, anyone can type any roll number and name. Upload the 1st year list to lock registrations to real students.'
+      ? 'No student list has been uploaded yet. Without it, anyone can type any ERP ID and name. Upload the 1st year list to lock registrations to real students.'
       : `${o.roster.count} students are on the list. Only listed students can register: ${o.roster.required ? 'ON' : 'OFF'}. Email verification: ${o.roster.emailVerification ? 'ON' : o.roster.mailConfigured ? 'OFF' : 'not available (email is not set up)'}.`;
     $('#roster-card').classList.toggle('bg-orange', o.roster.count === 0 || !o.roster.required);
     $('#ro-limit').textContent = o.limits.statementMb;
@@ -133,7 +135,7 @@
       bar.firstChild.style.width = ev.maxTeams ? `${Math.min(100, (taken / ev.maxTeams) * 100)}%` : '0%';
       return el('div', { className: 'fill-row' },
         el('div', { className: 'top' },
-          el('span', {}, ev.title, ev.isOpen ? null : el('span', { className: 'badge dark' }, 'Closed')),
+          el('span', {}, ev.title, HALF[ev.slot] ? el('small', { className: 'muted' }, ` ${HALF[ev.slot]}`) : null, ev.isOpen ? null : el('span', { className: 'badge dark' }, 'Closed')),
           el('span', {}, ev.maxTeams ? `${taken} / ${ev.maxTeams}` : `${taken} (no limit)`)),
         bar,
         el('p', { className: 'small muted' }, `${ev.approved} approved, ${ev.pending} pending, ${ev.participants} participants`));
@@ -170,6 +172,8 @@
     if ($('#f-event').value) params.set('event', $('#f-event').value);
     if ($('#f-status').value) params.set('status', $('#f-status').value);
     if ($('#f-section').value) params.set('section', $('#f-section').value);
+    if ($('#f-branch').value) params.set('branch', $('#f-branch').value);
+    if ($('#f-half').value) params.set('half', $('#f-half').value);
     return params;
   }
 
@@ -181,15 +185,22 @@
     select.value = keep;
   }
 
-  // The section filter offers the organisers' list plus any other section that is actually in use.
+  // The section and branch filters offer the organisers' lists plus anything else that is actually in use.
   async function fillSectionFilter(registrations) {
-    const select = $('#f-section');
-    if (select.options.length === 1) knownSections = (await call('/api/admin/settings')).settings.sections;
-    const inUse = registrations.flatMap((r) => r.members.map((m) => m.section)).filter(Boolean);
-    const all = [...new Set([...knownSections, ...inUse, select.value].filter(Boolean))].sort();
-    const keep = select.value;
-    select.replaceChildren(el('option', { value: '' }, 'All sections'), ...all.map((x) => el('option', { value: x }, x)));
-    select.value = keep;
+    if ($('#f-section').options.length === 1 && $('#f-branch').options.length === 1) {
+      const { settings } = await call('/api/admin/settings');
+      knownSections = settings.sections;
+      knownBranches = settings.branches;
+    }
+    const fill = (select, known, used, allLabel) => {
+      const keep = select.value;
+      const all = [...new Set([...known, ...used, keep].filter(Boolean))].sort((x, y) => x.localeCompare(y, undefined, { numeric: true }));
+      select.replaceChildren(el('option', { value: '' }, allLabel), ...all.map((x) => el('option', { value: x }, x)));
+      select.value = keep;
+    };
+    const people = registrations.flatMap((r) => r.members);
+    fill($('#f-section'), knownSections, people.map((m) => m.section), 'All sections');
+    fill($('#f-branch'), knownBranches, people.map((m) => m.branch), 'All branches');
   }
 
   async function loadRegistrations() {
@@ -202,7 +213,7 @@
     $('#reg-rows').replaceChildren(...registrations.map((r) =>
       el('tr', { className: 'clickable', tabIndex: 0, onclick: () => openDetail(r), onkeydown: (e) => { if (e.key === 'Enter') openDetail(r); } },
         el('td', { className: 'nowrap' }, el('strong', {}, r.code), el('small', {}, dateTime(r.createdAt))),
-        el('td', {}, r.eventTitle),
+        el('td', {}, r.eventTitle, HALF[r.eventSlot] ? el('small', {}, HALF[r.eventSlot]) : null),
         el('td', {}, r.teamName, r.source === 'admin' ? el('small', {}, 'added by an organiser') : null),
         el('td', {}, r.members[0]?.name || '', el('small', {}, `${r.members[0]?.roll || ''}, ${r.leaderPhone}`)),
         el('td', {}, String(r.memberCount)),
@@ -216,6 +227,8 @@
   $('#f-event').addEventListener('change', guard(loadRegistrations));
   $('#f-status').addEventListener('change', guard(loadRegistrations));
   $('#f-section').addEventListener('change', guard(loadRegistrations));
+  $('#f-branch').addEventListener('change', guard(loadRegistrations));
+  $('#f-half').addEventListener('change', guard(loadRegistrations));
 
   $$('[data-export]').forEach((button) => button.addEventListener('click', guard(async () => {
     const params = filterQuery();
@@ -286,7 +299,7 @@
         el('div', { className: 'detail-grid' },
           el('div', {},
             el('dl', { className: 'kv' },
-              el('dt', {}, 'Event'), el('dd', {}, r.eventTitle),
+              el('dt', {}, 'Event'), el('dd', {}, HALF[r.eventSlot] ? `${r.eventTitle} (${HALF[r.eventSlot]})` : r.eventTitle),
               el('dt', {}, 'Team'), el('dd', {}, r.teamName),
               el('dt', {}, 'Amount'), el('dd', {}, `${rupees(r.amount)} for ${r.memberCount} member(s)`),
               el('dt', {}, 'Transaction ID'), el('dd', { className: 'mono' }, r.utr || 'none'),
@@ -297,7 +310,7 @@
               el('dt', {}, 'Screenshot'), el('dd', {}, !r.hasScreenshot ? 'None' : r.scanStatus === 'clean' ? 'Virus scan passed, re-encoded' : 'Not virus scanned (scanner was unavailable), re-encoded')),
             el('div', { className: 'card flat table-card' }, el('div', { className: 'table-scroll' },
               el('table', {},
-                el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Name'), el('th', {}, 'Roll number'), el('th', {}, 'Branch'), el('th', {}, 'Section'), el('th', {}, 'Phone'))),
+                el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Name'), el('th', {}, 'ERP ID'), el('th', {}, 'Branch'), el('th', {}, 'Section'), el('th', {}, 'Phone'))),
                 el('tbody', {}, ...r.members.map((m, i) => el('tr', {},
                   el('td', {}, String(i + 1)), el('td', {}, m.name, i === 0 ? el('small', {}, 'Leader') : null),
                   el('td', {}, m.roll), el('td', {}, m.branch), el('td', {}, m.section || ''), el('td', {}, m.phone || '')))))))),
@@ -372,7 +385,7 @@
       summary.classList.toggle('warn', outside);
     }
 
-    // Flags a roll number that an earlier member of this team already has, as soon as it is typed.
+    // Flags an ERP ID that an earlier member of this team already has, as soon as it is typed.
     // With an index, returns whether that row is free of the problem.
     let repeatedRows = [];
     function markRepeated(index) {
@@ -385,12 +398,12 @@
         else firstUse.set(roll, i);
       });
       repeatedRows.filter((i) => !found.some(([row]) => row === i)).forEach((i) => setError(`m${i}-roll`, ''));
-      found.forEach(([i, other]) => setError(`m${i}-roll`, `Same roll number as ${other === 0 ? 'the leader' : `member ${other + 1}`}.`));
+      found.forEach(([i, other]) => setError(`m${i}-roll`, `Same ERP ID as ${other === 0 ? 'the leader' : `member ${other + 1}`}.`));
       repeatedRows = found.map(([i]) => i);
       return index === undefined ? found.length === 0 : !repeatedRows.includes(index);
     }
 
-    // Fills in the name, branch and phone from the student list when the roll number is on it.
+    // Fills in the name, branch and phone from the student list when the ERP ID is on it.
     async function lookup(i) {
       const m = members[i];
       if (!m || !m.roll.trim()) return; // the row may have been removed while its field still had focus
@@ -429,7 +442,7 @@
               m.roll = input.value.trim().toUpperCase().replace(/\s/g, '');
               input.value = m.roll;
               m.listed = false;
-              if (markRepeated(i)) lookup(i); // do not fill in details for a repeated roll number
+              if (markRepeated(i)) lookup(i); // do not fill in details for a repeated ERP ID
             });
           }
           return el('div', { className: 'field' }, el('label', { htmlFor: input.id }, label), input, el('p', { className: 'err', dataset: { err: `m${i}-${key}` } }));
@@ -441,7 +454,7 @@
               i > 0 ? el('button', { type: 'button', className: 'btn sm white', onclick: () => { members.unshift(members.splice(i, 1)[0]); clearErrors(); draw(); } }, 'Make leader') : null,
               members.length > 1 ? el('button', { type: 'button', className: 'btn sm red', onclick: () => { members.splice(i, 1); clearErrors(); draw(); } }, 'Remove') : null)),
           el('div', { className: 'ed-fields' },
-            field('roll', 'Roll number', { maxLength: 20, autocapitalize: 'characters', autocomplete: 'off' }),
+            field('roll', 'ERP ID', { maxLength: 20, autocapitalize: 'characters', autocomplete: 'off' }),
             field('name', 'Name', { maxLength: 60, autocomplete: 'off' }),
             field('branch', 'Branch', { maxLength: 40, autocomplete: 'off' }),
             field('section', 'Section', { maxLength: 20, autocomplete: 'off', autocapitalize: 'characters' }),
@@ -506,7 +519,7 @@
           el('div', { className: 'field' }, el('label', { htmlFor: 'ed-note' }, 'Note ', el('span', { className: 'opt' }, '(optional, organisers only)')), noteInput),
           isNew ? el('div', { className: 'field' }, el('label', { htmlFor: 'ed-status' }, 'Status'), status) : null),
         el('h3', { className: 'ed-title' }, 'Members'),
-        el('p', { className: 'small muted' }, 'The first one is the team leader. Type a roll number and the details fill in from the student list.'),
+        el('p', { className: 'small muted' }, 'The first one is the team leader. Type an ERP ID and the details fill in from the student list.'),
         list,
         el('p', { className: 'err', dataset: { err: 'members' } }),
         el('div', { className: 'btn-row mt' }, addBtn),
@@ -562,7 +575,7 @@
       el('div', { className: 'dlg-head' }, el('h3', {}, isNew ? 'Add a student' : `Edit ${student.roll}`)),
       el('div', { className: 'dlg-body settings-grid' },
         problem,
-        row('roll', isNew ? 'Roll number' : 'Roll number (cannot be changed; remove and add again instead)'),
+        row('roll', isNew ? 'ERP ID' : 'ERP ID (cannot be changed; remove and add again instead)'),
         row('name', 'Name'),
         el('div', { className: 'grid2' }, row('branch', 'Branch'), row('section', 'Section')),
         row('phone', 'Phone (optional)'),
@@ -684,7 +697,7 @@
     if (!ids.length) throw new Error('Tick the "Not found" registrations you want to reject.');
     const ok = await confirmBox({
       title: 'Reject these registrations?',
-      message: `${ids.length} registration(s) will be rejected because their transaction ID is not in this statement. Make sure the statement covers the dates they paid. Their roll numbers become free again, and a rejection cannot be undone.`,
+      message: `${ids.length} registration(s) will be rejected because their transaction ID is not in this statement. Make sure the statement covers the dates they paid. Their ERP IDs become free again, and a rejection cannot be undone.`,
       okText: 'Reject', danger: true,
     });
     if (!ok) return;
@@ -713,6 +726,8 @@
         el('p', { className: 'small' }, ev.description),
         el('div', { className: 'meta' },
           el('span', { className: `badge ${ev.isOpen ? 'approved' : 'rejected'}` }, ev.isOpen ? 'Open' : 'Closed'),
+          el('span', { className: `badge ${ev.slot ? 'dark' : 'pending'}` }, HALF[ev.slot] || 'No half set'),
+          el('span', { className: 'badge yellow' }, `ID code ${ev.code}`),
           el('span', { className: 'badge' }, size),
           el('span', { className: 'badge' }, ev.maxTeams ? `Max ${ev.maxTeams} ${unit}` : 'No limit'),
           el('span', { className: 'badge' }, `${rupees(ev.fee)} per head`)),
@@ -740,7 +755,7 @@
 
   function editEvent(ev) {
     const isNew = !ev;
-    const v = ev || { title: '', description: '', teamBased: true, minMembers: 5, maxMembers: 6, maxTeams: 15, fee: 50, isOpen: true, sort: events.length + 1 };
+    const v = ev || { title: '', description: '', teamBased: true, minMembers: 5, maxMembers: 6, maxTeams: 15, fee: 50, isOpen: true, sort: events.length + 1, code: '', slot: '' };
     const field = (id, label, input, hint) => el('div', { className: 'field' }, el('label', { htmlFor: id }, label), input, hint ? el('p', { className: 'hint' }, hint) : null);
     const num = (id, value, min, max) => el('input', { id, type: 'number', min: String(min), max: String(max), step: '1', value: String(value), inputMode: 'numeric' });
 
@@ -752,6 +767,9 @@
     const maxTeams = num('e-cap', v.maxTeams, 0, 10000);
     const fee = num('e-fee', v.fee, 0, 100000);
     const sort = num('e-sort', v.sort, 0, 9999);
+    const code = el('input', { id: 'e-code', type: 'text', maxLength: 4, value: v.code || '', autocapitalize: 'characters', autocomplete: 'off', placeholder: isNew ? 'Made from the title' : '' });
+    const slot = el('select', { id: 'e-slot' }, el('option', { value: '' }, 'Not set (counts as the whole day)'), el('option', { value: 'first' }, '1st half'), el('option', { value: 'second' }, '2nd half'));
+    slot.value = v.slot || '';
     const isOpen = el('input', { id: 'e-open', type: 'checkbox', checked: v.isOpen });
     const sizeRow = el('div', { className: 'grid2' },
       field('e-min', 'Minimum team size', minMembers), field('e-max', 'Maximum team size', maxMembers));
@@ -776,6 +794,9 @@
           el('div', { className: 'field' }, el('label', { htmlFor: 'e-cap' }, capLabel), maxTeams, el('p', { className: 'hint' }, '0 means no limit. Entries stop automatically when this is reached.')),
           field('e-fee', 'Fee per participant (rupees)', fee)),
         el('div', { className: 'grid2' },
+          field('e-slot', 'Half of the day', slot, 'A student can join one event in each half.'),
+          field('e-code', 'Code for registration IDs', code, 'Two to four letters. Treasure Hunt with the code TB gives IDs like IDT26-TB001.')),
+        el('div', { className: 'grid2' },
           field('e-sort', 'Position in the list', sort, 'Lower numbers show first.'),
           el('label', { className: 'check' }, isOpen, el('span', {}, 'Accepting entries')))),
       el('div', { className: 'dlg-foot' },
@@ -787,7 +808,7 @@
       const body = {
         title: title.value, description: description.value, teamBased: teamBased.checked,
         minMembers: Number(minMembers.value), maxMembers: Number(maxMembers.value), maxTeams: Number(maxTeams.value),
-        fee: Number(fee.value), sort: Number(sort.value), isOpen: isOpen.checked,
+        fee: Number(fee.value), sort: Number(sort.value), isOpen: isOpen.checked, code: code.value, slot: slot.value,
       };
       try {
         events = (await call(isNew ? '/api/admin/events' : `/api/admin/events/${ev.id}`, { method: isNew ? 'POST' : 'PUT', body })).events;
@@ -816,7 +837,7 @@
     $('#ro-stats').replaceChildren(
       stat('bg-white', 'Students on the list', r.count, `${r.withSection} with a section, ${r.withPhone} with a phone, ${r.withEmail} with an email`),
       stat(r.rosterRequired ? 'bg-green' : 'bg-orange', 'Registration check', r.rosterRequired ? 'ON' : 'OFF',
-        r.rosterRequired ? 'Only listed students can register' : 'Anyone can type any roll number'));
+        r.rosterRequired ? 'Only listed students can register' : 'Anyone can type any ERP ID'));
     $('#ro-required').checked = r.rosterRequired;
     $('#ro-required').disabled = r.count === 0;
     $('#ro-phone').checked = r.matchLeaderPhone;
@@ -945,7 +966,8 @@
     $('#opensAt').value = toLocalInput(settings.opensAt);
     $('#closesAt').value = toLocalInput(settings.closesAt);
     TEXT_SETTINGS.forEach((key) => { $(`#${key}`).value = settings[key] ?? ''; });
-    $('#allowMultiEvent').checked = settings.allowMultiEvent;
+    $('#participation').value = settings.participation;
+    knownBranches = settings.branches;
     $('#branches').value = settings.branches.join('\n');
     $('#sections').value = settings.sections.join('\n');
     $('#allowOtherSection').checked = settings.allowOtherSection;
@@ -1004,7 +1026,7 @@
       regMode: $('input[name="regMode"]:checked')?.value || 'closed',
       opensAt: fromLocalInput($('#opensAt').value),
       closesAt: fromLocalInput($('#closesAt').value),
-      allowMultiEvent: $('#allowMultiEvent').checked,
+      participation: $('#participation').value,
       branches: $('#branches').value.split('\n'),
       sections: $('#sections').value.split('\n'),
       allowOtherSection: $('#allowOtherSection').checked,

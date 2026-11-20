@@ -196,6 +196,9 @@ addColumn('registrations', 'source', "TEXT NOT NULL DEFAULT 'online'"); // onlin
 addColumn('registrations', 'note', "TEXT NOT NULL DEFAULT ''");          // organiser's note, for example how a team paid
 addColumn('members', 'section', "TEXT NOT NULL DEFAULT ''");             // class section, for example A or B
 addColumn('students', 'section', "TEXT NOT NULL DEFAULT ''");
+addColumn('events', 'code', "TEXT NOT NULL DEFAULT ''");         // short code used in registration IDs, for example PP
+addColumn('events', 'slot', "TEXT NOT NULL DEFAULT ''");         // first | second half of the day, or '' when not set
+addColumn('events', 'last_seq', 'INTEGER NOT NULL DEFAULT 0');   // running number of the event's registration IDs
 
 // ---------------------------------------------------------------------------
 // Settings: a small key/value store, edited from the admin panel.
@@ -215,8 +218,8 @@ const DEFAULT_SETTINGS = {
   allowOtherSection: true,    // students may choose "Other" and type a section that is not in the list
   contactName: 'Prof Chinmayi G',
   contactPhone: '',
-  allowMultiEvent: false,     // default rule: one student, one event
-  rosterRequired: false,      // only roll numbers on the uploaded student list may register
+  participation: 'perHalf',   // perHalf: one event in each half | one: one event only | any: no limit across events
+  rosterRequired: false,      // only ERP IDs on the uploaded student list may register
   matchLeaderPhone: false,    // the leader's phone must match the phone on the student list
   emailVerification: false,   // the leader must confirm their email with a code before paying
 };
@@ -240,6 +243,14 @@ export function saveSettings(patch) {
   for (const [key, value] of Object.entries(patch)) {
     if (key in DEFAULT_SETTINGS) upsertSetting.run(key, JSON.stringify(value));
   }
+}
+
+// The yes/no "more than one event" setting became a three way rule. Carry a saved choice over once.
+{
+  const old = db.prepare("SELECT value FROM settings WHERE key = 'allowMultiEvent'").get();
+  const current = db.prepare("SELECT 1 FROM settings WHERE key = 'participation'").get();
+  if (old && !current && old.value === 'true') saveSettings({ participation: 'any' });
+  if (old) db.prepare("DELETE FROM settings WHERE key = 'allowMultiEvent'").run();
 }
 
 // The built in section list grew from A-H to A-P. A saved list is upgraded only when it is still
@@ -282,6 +293,8 @@ export function eventToJson(row) {
     isOpen: !!row.is_open,
     sort: row.sort,
     archived: !!row.archived,
+    code: row.code,
+    slot: row.slot,
   };
 }
 

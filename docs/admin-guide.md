@@ -45,14 +45,14 @@ Warnings that can appear at the top:
 
 ## Registrations
 
-- **Search** matches registration ID, team name, any member's name or roll number, phone, email and
-  transaction ID. Filter by event, **section** and status. The section filter shows every team that
-  has at least one member from that section.
+- **Search** matches registration ID, team name, any member's name or ERP ID, phone, email and
+  transaction ID. Filter by event, **half**, **branch**, **section** and status. The branch and section filters show
+  every team that has at least one member from that branch or section.
 - Click a row to open it: members, amount, transaction ID, and the payment screenshot (click the
   image for full size).
 - **Approve payment** confirms the team. **Reject** needs a reason; the team sees it in their status
   and by email. **Move back to pending** undoes an approval.
-- A rejected registration cannot be reopened. Rejecting frees the team's slot, roll numbers and
+- A rejected registration cannot be reopened. Rejecting frees the team's slot, ERP IDs and
   transaction ID, so they can register again.
 - **Delete** removes the registration and its screenshot for good.
 
@@ -63,7 +63,7 @@ Open a pending or approved registration and press **Edit team**.
 | You want to | Do this |
 | --- | --- |
 | Remove a member | **Remove** on that member's card |
-| Add a member | **Add a member**, then type the roll number. Name, branch, section and phone fill in from the student list. |
+| Add a member | **Add a member**, then type the ERP ID. Name, branch, section and phone fill in from the student list. |
 | Fix a section | Type it in the Section box of that member. |
 | Change the leader | **Make leader** on the member who should lead. They move to the top. The leader needs a phone number. |
 | Fix a phone number, the team name, the leader's email or the transaction ID | Change the field |
@@ -76,7 +76,7 @@ What the editor checks:
 
 - A student who is already in another team cannot be added. The message names the team, so you can
   remove them there first.
-- With the student list on, a roll number that is not on the list is refused. Add the student first.
+- With the student list on, an ERP ID that is not on the list is refused. Add the student first.
 - A team size outside the event's range, or an event that is already full, shows a **Save anyway?**
   question instead of blocking you. You decide.
 - The amount follows the team size. If it changes, you are told the old and new amount so you can
@@ -90,12 +90,12 @@ A **rejected** registration cannot be edited; add the team by hand instead.
 a late entry you have agreed to, or redoing a rejected registration.
 
 1. Choose the event and type the team name.
-2. Type the leader's roll number and phone, then add the other members.
+2. Type the leader's ERP ID and phone, then add the other members.
 3. Enter the UPI transaction ID if there is one, or leave it empty and write how they paid in the Note.
 4. Choose **Approved** if you have the money, or **Pending** to verify later.
 
 This skips the captcha, the email code and the screenshot, because you are vouching for the team. The
-rule of one student per event still applies. The registration is marked "added by an organiser" in the
+rule about one event in each half still applies. The registration is marked "added by an organiser" in the
 list and in exports, the activity log records who added it, and an approved team gets the usual
 confirmation email.
 
@@ -110,7 +110,19 @@ Exports follow the current search and filters.
 | JSON | Developers |
 
 Choose **One row per team** (for payment tracking) or **One row per participant** (for attendance).
-The per participant export has a **Section** column, so it sorts straight into class-wise attendance sheets.
+Both have **Half** and the per participant export has **Branch** and **Section** columns.
+
+Useful combinations:
+
+| You want | Set |
+| --- | --- |
+| Everyone in one event | Event, then One row per participant |
+| Attendance sheet for the 1st half | Half = 1st half, One row per participant |
+| All ECE students taking part | Branch = ECE, One row per participant. Only the ECE students are listed, even from mixed teams. |
+| One class section | Section, One row per participant. Only that section's students are listed. |
+| Teams still to be verified in one event | Event, Status = Pending, One row per team |
+
+With One row per team, a branch or section filter keeps the whole team if any member matches.
 
 Exported files are **not encrypted** and contain student details. Keep them on a trusted device and
 delete them when you are done.
@@ -148,6 +160,8 @@ Add, edit and remove events.
 | Fee per participant | In rupees. The amount to pay is fee times team size. |
 | Position in the list | Lower numbers show first |
 | Accepting entries | Close one event without closing the others |
+| Half of the day | 1st half or 2nd half. A student can join one event in each half. An event with no half set counts as the whole day, so it clashes with every other event. **Set this for every event before opening registration.** |
+| Code for registration IDs | Two to four letters, for example PP for Poster Presentation or TB for Treasure Hunt + Bounty. Registration IDs are the code and a running number: `IDT26-TB001`, `IDT26-TB002`. Leave it empty and one is made from the title. Each event needs its own code. |
 
 Removing an event that already has registrations hides it from the site and keeps the registrations.
 
@@ -162,7 +176,7 @@ One student per row, the first row being the column headings. Excel (.xlsx) or C
 
 | Column | Needed | Headings that are recognised | Content |
 | --- | --- | --- | --- |
-| Roll number | Yes | Roll number, Roll No, USN, Reg No, Registration number, Admission No, Student ID | 3 to 20 letters and digits, also `/` and `-`. Capitals and spaces do not matter. |
+| ERP ID | Yes | ERP ID, Roll No, USN, Reg No, Registration number, Admission No, Student ID | 3 to 20 letters and digits, also `/` and `-`. Capitals and spaces do not matter. |
 | Name | Yes | Name, Student Name, Full Name | Full name |
 | Branch | No | Branch, Department, Dept, Course, Program, Stream | Any text |
 | Section | No | Section, Sec, Division | The class section. "A", "Sec A" and "section a" are all read as A. When it is missing, the student picks it in the form. |
@@ -170,10 +184,10 @@ One student per row, the first row being the column headings. Excel (.xlsx) or C
 | Email | No, but needed for email verification | Email, E-mail, Email ID | The address the code is sent to |
 
 - Columns can be in any order. Extra columns are ignored. A title row above the headings is fine.
-- A row is skipped if the roll number is invalid, the name is empty, or the roll number already
+- A row is skipped if the ERP ID is invalid, the name is empty, or the ERP ID already
   appeared. The result lists the skipped rows and why.
 - **Replace the whole list** swaps the list. **Add to the list and update existing** keeps what is
-  there and updates matching roll numbers. Neither changes existing registrations.
+  there and updates matching ERP IDs. Neither changes existing registrations.
 
 ### Correcting one student
 
@@ -184,13 +198,13 @@ After a bulk upload you do not need to upload the file again to fix one row.
   email also becomes the contact email of a team that student leads.
 - **Add one student** adds a single student who was missing from the file.
 - **Remove** takes a student off the list. It does not touch a registration they are already in.
-- The roll number itself cannot be changed. Remove the student and add them again with the right one.
+- The ERP ID itself cannot be changed. Remove the student and add them again with the right one.
 
 ### The three switches
 
 | Switch | Effect |
 | --- | --- |
-| Only students on this list can register | Roll numbers not on the list are refused. Names and branch come from the list and cannot be edited by students. |
+| Only students on this list can register | ERP IDs not on the list are refused. Names and branch come from the list and cannot be edited by students. |
 | The team leader's phone must match the phone on this list | For lists with phone numbers. A leader whose number changed will need you to update the list. |
 | The team leader must verify their email with a code | A code is emailed before payment. Needs email to be set up. |
 
@@ -209,7 +223,8 @@ email on the list is wrong, fix the list (Add to the list and update existing, w
 - **Registration window**: Open, Closed, or Scheduled with an opening and closing time.
 - **Payment**: UPI ID and the payee name students see.
 - **Event details**: name, date, contact person and phone (shown publicly), and an optional notice on the home page.
-- **Rules**: whether a student may join more than one event (off by default), the branch list used
+- **Rules**: how many events a student may join (**one event in each half** to start with; the other
+  choices are one event only, or any number), the branch list used
   when the student list is off, and the **section list** students pick from (A to P to start with;
   change it to match your college). A section that comes from the student list is used as it is.
   **Let students choose "Other"** adds an "Other (type it)" choice for a section that is not in the
@@ -226,7 +241,7 @@ the account that did it and the time. Use it when you need to know who approved 
 
 | Situation | What to do |
 | --- | --- |
-| A student says someone else registered with their roll number | Search the roll number under Registrations. Reject or delete that registration. The student can then register. |
+| A student says someone else registered with their ERP ID | Search the ERP ID under Registrations. Reject or delete that registration. The student can then register. |
 | A team typed the wrong transaction ID | Reject with that reason. They register again with the right ID. |
 | A team wants to change a member | Open the registration, **Edit team**, remove the old member and add the new one. |
 | A team paid in cash | **Add a registration by hand**, leave the transaction ID empty, and write a Note. |

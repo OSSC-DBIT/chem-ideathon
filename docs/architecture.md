@@ -51,6 +51,7 @@ src/
   admin-routes.js         What organisers use: registrations, exports, statements, events, students, settings
   admin-teams.js          Adding a registration by hand, editing a team, editing one student
   rules.js                Input rules shared by the public form and the admin panel
+  participation.js        Halves and the "one event in each half" rule, event codes, registration IDs
   uploads.js              Upload limits, image re-encoding, virus scanning
   captcha.js              Self hosted image captcha
   roster.js               Student list import and lookup, name and email masking
@@ -74,10 +75,10 @@ SQLite), `sharp` (images), `exceljs` (Excel read and write), `nodemailer` (email
 | Table | Holds | Notes |
 | --- | --- | --- |
 | `settings` | Key and JSON value pairs | Everything set in the admin panel |
-| `events` | Title, description, team or solo, min and max size, limit, fee, open, order, archived | Removed events with registrations are archived, not deleted |
+| `events` | Title, description, team or solo, min and max size, limit, fee, open, order, archived, code, half (`slot`), running number of its registration IDs | Removed events with registrations are archived, not deleted |
 | `registrations` | Code, event, team name, leader email and phone, member count, amount, transaction ID, screenshot file name, status, reject reason, who decided and when, scan status, source (student or organiser), note | Status is `pending`, `approved` or `rejected` |
-| `members` | Registration, position, name, roll number, branch, section, phone | Position 0 is the leader. Deleted with the registration. |
-| `students` | Roll number, name, branch, section, phone, email | The uploaded student list |
+| `members` | Registration, position, name, ERP ID, branch, section, phone | Position 0 is the leader. Deleted with the registration. |
+| `students` | ERP ID, name, branch, section, phone, email | The uploaded student list |
 | `organisers` | Username, salt, password hash, when and by whom created | The owner account is not here; it lives in `.env` |
 | `admin_sessions` | Hash of the session token, CSRF token, username, expiry | |
 | `audit` | Time, account, action, detail | The activity log |
@@ -85,10 +86,10 @@ SQLite), `sharp` (images), `exceljs` (Excel read and write), `nodemailer` (email
 Rules that the queries enforce:
 
 - A clash check always ignores rejected registrations (`status != 'rejected'`). That is how a
-  rejection frees the slot, the roll numbers, the team name and the transaction ID.
+  rejection frees the slot, the ERP IDs, the team name and the transaction ID.
 - Capacity counts pending and approved registrations.
-- With "one student, one event" on, a roll number may appear in one live registration in total;
-  otherwise in one per event.
+- By default an ERP ID may appear in one live registration per half of the day. An event with no
+  half set counts as the whole day. The other rules are one registration in total, or one per event.
 
 New columns are added with `addColumn()` in `db.js`, which runs on every start, so an older database
 upgrades itself.
@@ -99,7 +100,7 @@ upgrades itself.
 Browser                                   Server
 -------                                   ------
 load page             GET  /api/public    settings, events with slots left, which checks are on
-type a roll number    POST /api/precheck  is it on the list (masked name back), already registered, team name free
+type an ERP ID    POST /api/precheck  is it on the list (masked name back), already registered, team name free
 Continue (team step)  POST /api/precheck  the same check for the whole team
                       GET  /api/captcha   image with five digits
 send code             POST /api/verify/send    captcha checked, code emailed to the address on the list
@@ -117,7 +118,7 @@ a submission that can succeed:
    the list; whatever the browser sent for them is ignored.
 3. Transaction ID already registered? The identical registration gets its original answer back
    (safe retry); anything else is refused.
-4. Clash check: capacity, team name, roll numbers.
+4. Clash check: capacity, team name, ERP IDs.
 5. Proof of a human: a valid email verification token for this leader and email, or a solved captcha
    when email verification is off.
 6. Virus scan of the screenshot exactly as received.
@@ -134,7 +135,7 @@ a submission that can succeed:
 | Whole file encryption, not per field | Search, uniqueness and joins keep working unchanged, and nothing is left out by mistake. |
 | No browser framework | Small pages, no build step, and a strict Content Security Policy is easy to keep. |
 | Captcha drawn from strokes | The container has no fonts, and no third party service is needed. |
-| Names masked in the roll number lookup | The form must show something to confirm a teammate, without becoming a way to download the list. |
+| Names masked in the ERP ID lookup | The form must show something to confirm a teammate, without becoming a way to download the list. |
 | Screenshots resized in the browser, then re-encoded on the server | Small uploads on mobile data, and the server never keeps a file as it was sent. |
 | Verification codes kept in memory | Short lived by nature; losing them on restart only means asking again. |
 | The site published on localhost | Only the Cloudflare tunnel connects, so the visitor address header can be trusted. |

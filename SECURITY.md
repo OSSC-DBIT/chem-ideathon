@@ -1,6 +1,6 @@
 # Security Policy
 
-This site handles student names, roll numbers, phone numbers, email addresses and payment screenshots.
+This site handles student names, ERP IDs, phone numbers, email addresses and payment screenshots.
 If you find a way to read, change or block that data when you should not be able to, we want to know.
 
 ## Reporting a problem

@@ -127,7 +127,7 @@ Open `https://ideathon.webuildnow.in/admin` and sign in.
 3. **Student list**: press **Check connection**, then **Send test** to your own address. Look in Spam too.
 4. **Student list**: tick "Only students on this list can register" and "The team leader must verify
    their email with a code".
-5. **Events**: check team sizes, limits and fees.
+5. **Events**: check team sizes, limits and fees, and set each event's **half** and **ID code**.
 6. **Overview**: make sure there is no warning about the virus scanner or the UPI ID.
 7. Register one test team from a phone, approve it, then delete it.
 

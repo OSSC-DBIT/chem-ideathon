@@ -4,7 +4,7 @@ import { db, tx } from './db.js';
 /*
  * The student list ("roster"): the 1st year students who may register.
  * Organisers upload it from the admin panel. When the roster is switched on,
- * only roll numbers on the list are accepted and names come from the list.
+ * only ERP IDs on the list are accepted and names come from the list.
  */
 
 const ROLL_RE = /^[A-Z0-9][A-Z0-9/-]{2,19}$/;
@@ -33,7 +33,7 @@ export const maskEmail = (email) => {
 };
 
 /**
- * "Asha Rao" becomes "As** Ra*". The public roll number lookup returns this, so the form can
+ * "Asha Rao" becomes "As** Ra*". The public ERP ID lookup returns this, so the form can
  * confirm "yes, that is my teammate" without turning the lookup into a way to download the
  * college's student list.
  */
@@ -120,7 +120,7 @@ export async function tableRows(kind, raw) {
 // Turning rows into students
 // ---------------------------------------------------------------------------
 const HEADINGS = {
-  roll: /roll|usn|reg(istration|n)?\.?\s*(no|num|id)?|admission|student\s*id|^id$/i,
+  roll: /erp|roll|usn|reg(istration|n)?\.?\s*(no|num|id)?|admission|student\s*id|^id$/i,
   name: /name/i,
   branch: /branch|dep(t|artment)|course|program|stream/i,
   section: /section|^sec\.?$|division|^div\.?$/i,
@@ -162,9 +162,9 @@ export function readRoster(rows) {
     if (!row || row.every((c) => !String(c ?? '').trim())) continue;
     const roll = normaliseRoll(row[cols.roll]);
     const name = tidy(row[cols.name], 60);
-    if (!ROLL_RE.test(roll) || !/\d/.test(roll)) { skipped += 1; note(`Row ${r + 1}: "${tidy(row[cols.roll], 24)}" is not a valid roll number.`); continue; }
-    if (name.length < 2) { skipped += 1; note(`Row ${r + 1}: roll number ${roll} has no name.`); continue; }
-    if (students.has(roll)) { skipped += 1; note(`Row ${r + 1}: roll number ${roll} appears more than once. The first one was kept.`); continue; }
+    if (!ROLL_RE.test(roll) || !/\d/.test(roll)) { skipped += 1; note(`Row ${r + 1}: "${tidy(row[cols.roll], 24)}" is not a valid ERP ID.`); continue; }
+    if (name.length < 2) { skipped += 1; note(`Row ${r + 1}: ERP ID ${roll} has no name.`); continue; }
+    if (students.has(roll)) { skipped += 1; note(`Row ${r + 1}: ERP ID ${roll} appears more than once. The first one was kept.`); continue; }
     students.set(roll, {
       roll,
       name,

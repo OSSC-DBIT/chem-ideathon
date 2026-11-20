@@ -3,26 +3,34 @@ import ExcelJS from 'exceljs';
 const ist = (iso) =>
   iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : '';
 
-/** Builds { columns, rows } for either layout. `regs` carry a `members` array. */
-export function buildTable(regs, layout) {
+const HALF = { first: '1st half', second: '2nd half' };
+
+/**
+ * Builds { columns, rows } for either layout. `regs` carry a `members` array.
+ * In the per participant layout, `only.branch` and `only.section` keep just the matching students.
+ */
+export function buildTable(regs, layout, only = {}) {
   if (layout === 'participants') {
-    const columns = ['Reg ID', 'Event', 'Team', 'Role', 'Name', 'Roll number', 'Branch', 'Section', 'Phone', 'Status', 'Team amount (Rs)', 'Transaction ID'];
+    const columns = ['Reg ID', 'Event', 'Half', 'Team', 'Role', 'Name', 'ERP ID', 'Branch', 'Section', 'Phone', 'Status', 'Team amount (Rs)', 'Transaction ID'];
+    const wantBranch = (only.branch || '').toLowerCase();
     const rows = [];
     for (const r of regs) {
       r.members.forEach((m, i) => {
-        rows.push([r.code, r.eventTitle, r.teamName, i === 0 ? 'Leader' : 'Member', m.name, m.roll, m.branch, m.section, m.phone, r.status, r.amount, r.utr]);
+        if (wantBranch && String(m.branch).toLowerCase() !== wantBranch) return;
+        if (only.section && m.section !== only.section) return;
+        rows.push([r.code, r.eventTitle, HALF[r.eventSlot] || '', r.teamName, i === 0 ? 'Leader' : 'Member', m.name, m.roll, m.branch, m.section, m.phone, r.status, r.amount, r.utr]);
       });
     }
     return { columns, rows };
   }
 
   const columns = [
-    'Reg ID', 'Event', 'Team', 'Members', 'Leader name', 'Leader roll number', 'Leader phone', 'Leader email',
+    'Reg ID', 'Event', 'Half', 'Team', 'Members', 'Leader name', 'Leader ERP ID', 'Leader phone', 'Leader email',
     'All members', 'Amount (Rs)', 'Transaction ID', 'Status', 'Reject reason', 'Registered at', 'Decided at', 'Decided by',
     'Added by', 'Note',
   ];
   const rows = regs.map((r) => [
-    r.code, r.eventTitle, r.teamName, r.memberCount, r.members[0]?.name || '', r.members[0]?.roll || '',
+    r.code, r.eventTitle, HALF[r.eventSlot] || '', r.teamName, r.memberCount, r.members[0]?.name || '', r.members[0]?.roll || '',
     r.leaderPhone, r.leaderEmail, r.members.map((m) => `${m.name} (${[m.roll, m.branch, m.section && `Sec ${m.section}`].filter(Boolean).join(', ')})`).join('; '),
     r.amount, r.utr, r.status, r.rejectReason, ist(r.createdAt), ist(r.decidedAt), r.decidedBy || '',
     r.source === 'admin' ? 'Organiser' : 'Student', r.note || '',

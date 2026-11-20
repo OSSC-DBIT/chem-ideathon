@@ -5,7 +5,8 @@ import express from 'express';
 import QRCode from 'qrcode';
 import { db, tx, getSettings, registrationState, eventToJson, UPLOAD_DIR } from './db.js';
 import { rateLimit } from './security.js';
-import { clean, cleanPhone, NAME_RE, ROLL_RE, PHONE_RE, EMAIL_RE, UTR_RE, SECTION_RE, newCode } from './rules.js';
+import { clean, cleanPhone, NAME_RE, ROLL_RE, PHONE_RE, EMAIL_RE, UTR_RE, SECTION_RE } from './rules.js';
+import { findClash, eventWithHalf, ruleSentence, nextRegistrationId, REGISTRATION_ID_RE } from './participation.js';
 import { MAX_SCREENSHOT_BYTES, UploadError, decodeImageDataUrl, sanitiseImage, scanOrThrow, limits } from './uploads.js';
 import { audit } from './db.js';
 import { createCaptcha, verifyCaptcha } from './captcha.js';
@@ -16,7 +17,7 @@ import { sendCode, checkCode, tokenValid, useToken, hasLiveChallenge, VerifyErro
 
 export const router = express.Router();
 
-const NOT_LISTED = 'This roll number is not in the 1st year student list. Check it, or contact the coordinator.';
+const NOT_LISTED = 'This ERP ID is not in the 1st year student list. Check it, or contact the coordinator.';
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -35,16 +36,6 @@ const utrTaken = db.prepare(`
   FROM registrations WHERE utr = ? AND status != 'rejected'
 `);
 const leaderRoll = db.prepare('SELECT roll FROM members WHERE registration_id = ? AND position = 0');
-const rollInEvent = db.prepare(`
-  SELECT m.roll FROM members m JOIN registrations r ON r.id = m.registration_id
-  WHERE r.status != 'rejected' AND r.event_id = ? AND m.roll = ?
-`);
-const rollAnywhere = db.prepare(`
-  SELECT e.title FROM members m
-  JOIN registrations r ON r.id = m.registration_id
-  JOIN events e ON e.id = r.event_id
-  WHERE r.status != 'rejected' AND m.roll = ?
-`);
 const insertReg = db.prepare(`
   INSERT INTO registrations (code, event_id, team_name, leader_email, leader_phone, member_count, amount, utr, screenshot, created_at, scan_status)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -69,7 +60,7 @@ router.get('/public', (req, res) => {
     eventDate: settings.eventDate,
     venue: settings.venue,
     notice: settings.notice,
-    allowMultiEvent: settings.allowMultiEvent,
+    participation: settings.participation,
     rosterRequired: settings.rosterRequired,
     emailVerification: settings.emailVerification && mailConfigured,
     maxScreenshotMb: limits.screenshotMb,
@@ -85,7 +76,7 @@ router.get('/public', (req, res) => {
       return {
         id: ev.id, title: ev.title, description: ev.description, teamBased: ev.teamBased,
         minMembers: ev.minMembers, maxMembers: ev.maxMembers, maxTeams: ev.maxTeams, fee: ev.fee,
-        isOpen: ev.isOpen, taken: row.taken, full,
+        isOpen: ev.isOpen, taken: row.taken, full, code: ev.code, slot: ev.slot,
       };
     }),
   });
@@ -116,7 +107,7 @@ router.get('/qr', async (req, res, next) => {
 });
 
 // A fresh captcha image. Each one works for a single submit attempt.
-router.get('/captcha', rateLimit({ windowMs: 10 * 60 * 1000, max: 300 }), async (req, res, next) => {
+router.get('/captcha', rateLimit({ windowMs: 10 * 60 * 1000, max: 3000 }), async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
     res.json(await createCaptcha());
@@ -148,8 +139,8 @@ function validate(body, event, settings) {
       section: tidySection(raw?.section),
     };
     let listed = null;
-    if (!ROLL_RE.test(m.roll)) errors[`m${i}-roll`] = 'Enter a valid roll number.';
-    else if (seen.has(m.roll)) errors[`m${i}-roll`] = 'This roll number is repeated in your team.';
+    if (!ROLL_RE.test(m.roll)) errors[`m${i}-roll`] = 'Enter a valid ERP ID.';
+    else if (seen.has(m.roll)) errors[`m${i}-roll`] = 'This ERP ID is repeated in your team.';
     else if (settings.rosterRequired) {
       listed = getStudent(m.roll);
       if (!listed) errors[`m${i}-roll`] = NOT_LISTED;
@@ -176,7 +167,7 @@ function validate(body, event, settings) {
       }
     }
     if (i === 0 && listed && settings.matchLeaderPhone && listed.phone && PHONE_RE.test(m.phone) && listed.phone !== m.phone) {
-      errors['m0-phone'] = 'This phone number does not match the one the college has for this roll number.';
+      errors['m0-phone'] = 'This phone number does not match the one the college has for this ERP ID.';
     }
     if (i === 0 || m.phone) {
       if (!PHONE_RE.test(m.phone)) errors[`m${i}-phone`] = 'Enter a valid 10 digit mobile number.';
@@ -215,7 +206,7 @@ function validate(body, event, settings) {
 
 /**
  * The rules that can clash with existing registrations: event capacity, team name,
- * and roll numbers that are already in a pending or approved registration.
+ * and ERP IDs that are already in a pending or approved registration.
  * Returns null when everything is free, otherwise { message, fields }.
  */
 function findConflict(event, settings, teamName, rolls) {
@@ -225,24 +216,31 @@ function findConflict(event, settings, teamName, rolls) {
   const fields = {};
   const nameTaken = event.team_based && teamName && teamNameTaken.get(event.id, teamName);
   if (nameTaken) fields.teamName = 'This team name is taken. Pick another.';
+  let sameEvent = 0;
+  let otherEvent = 0;
   rolls.forEach((roll, i) => {
     if (!roll) return;
-    const clash = settings.allowMultiEvent ? rollInEvent.get(event.id, roll) : rollAnywhere.get(roll);
+    const clash = findClash(settings, event, roll);
     if (!clash) return;
     const who = i === 0 ? 'You are' : 'This student is';
-    fields[`m${i}-roll`] = settings.allowMultiEvent
-      ? `${who} already registered for this event in another team.`
-      : `${who} already registered for ${clash.title}. A student can join only one event.`;
+    if (clash.sameEvent) {
+      sameEvent += 1;
+      fields[`m${i}-roll`] = `${who} already registered for this event in another team.`;
+    } else {
+      otherEvent += 1;
+      fields[`m${i}-roll`] = `${who} already registered for ${eventWithHalf(clash.title, clash.slot)}. ${ruleSentence(settings.participation)}`;
+    }
   });
-  const count = Object.keys(fields).length - (nameTaken ? 1 : 0);
+  const count = sameEvent + otherEvent;
   if (count === 0 && nameTaken) return { message: 'That team name is already taken for this event.', fields };
   if (count > 0) {
-    return {
-      message: settings.allowMultiEvent
-        ? `${count} of your members ${count === 1 ? 'is' : 'are'} already registered for this event. A student cannot be in two teams.`
-        : `${count} of your members ${count === 1 ? 'is' : 'are'} already registered. A student can join only one event and one team. Replace them or ask the organisers.`,
-      fields,
-    };
+    const members = `${count} of your members ${count === 1 ? 'is' : 'are'}`;
+    const message = otherEvent === 0
+      ? `${members} already registered for this event. A student cannot be in two teams.`
+      : settings.participation === 'one'
+        ? `${members} already registered. A student can join only one event and one team. Replace them or ask the organisers.`
+        : `${members} already registered for an event at the same time. ${ruleSentence(settings.participation)} Replace them or ask the organisers.`;
+    return { message, fields };
   }
   return null;
 }
@@ -263,7 +261,7 @@ class Conflict extends Error {
 router.post(
   '/register',
   express.json({ limit: Math.ceil(MAX_SCREENSHOT_BYTES * 1.4) + 200 * 1024 }),
-  rateLimit({ windowMs: 10 * 60 * 1000, max: Number(process.env.REGISTER_RATE_LIMIT) || 40 }),
+  rateLimit({ windowMs: 10 * 60 * 1000, max: Number(process.env.REGISTER_RATE_LIMIT) || 400 }),
   async (req, res, next) => {
     const settings = getSettings();
     const state = registrationState(settings);
@@ -347,7 +345,7 @@ router.post(
         if (conflict) throw new Conflict(conflict.message, conflict.fields);
 
         fs.writeFileSync(filePath, sealFile(image), { mode: 0o600 }); // encrypted on disk
-        const regCode = newCode();
+        const regCode = nextRegistrationId(event.id);
         const result = insertReg.run(
           regCode, event.id, data.teamName, data.email, data.members[0].phone,
           data.members.length, amount, data.utr, fileName, new Date().toISOString(), scanStatus,
@@ -388,7 +386,7 @@ router.post(
 router.post(
   '/precheck',
   express.json({ limit: '20kb' }),
-  rateLimit({ windowMs: 10 * 60 * 1000, max: 900 }),
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 9000 }),
   (req, res) => {
     const settings = getSettings();
     const state = registrationState(settings);
@@ -400,16 +398,16 @@ router.post(
     const rolls = (Array.isArray(req.body?.rolls) ? req.body.rolls.slice(0, 50) : [])
       .map((r) => clean(r, 20).toUpperCase().replace(/\s/g, ''))
       .map((r) => (ROLL_RE.test(r) ? r : ''));
-    // The same roll number entered for two members of this team.
+    // The same ERP ID entered for two members of this team.
     const repeated = {};
     const seenRolls = new Set();
     rolls.forEach((roll, i) => {
       if (!roll) return;
-      if (seenRolls.has(roll)) repeated[`m${i}-roll`] = 'This roll number is repeated in your team. Each member needs their own roll number.';
+      if (seenRolls.has(roll)) repeated[`m${i}-roll`] = 'This ERP ID is repeated in your team. Each member needs their own ERP ID.';
       seenRolls.add(roll);
     });
 
-    // With the student list on: report unknown roll numbers and send back the names to fill in.
+    // With the student list on: report unknown ERP IDs and send back the names to fill in.
     let students = null;
     const unknown = {};
     if (settings.rosterRequired) {
@@ -427,9 +425,9 @@ router.post(
     const fields = { ...(conflict?.fields || {}), ...unknown, ...repeated };
     if (Object.keys(fields).length) {
       const error = Object.keys(repeated).length
-        ? 'The same roll number is entered more than once in your team.'
+        ? 'The same ERP ID is entered more than once in your team.'
         : Object.keys(unknown).length
-          ? 'One or more roll numbers are not in the 1st year student list.'
+          ? 'One or more ERP IDs are not in the 1st year student list.'
           : conflict.message;
       return res.status(409).json({ error, fields, students });
     }
@@ -443,7 +441,7 @@ router.post(
 /** Which email belongs to this leader: the one on the student list when there is one, else the one typed. */
 function leaderEmail(settings, body) {
   const roll = clean(body?.roll, 20).toUpperCase().replace(/\s/g, '');
-  if (!ROLL_RE.test(roll)) throw new VerifyError("Enter the team leader's roll number first.");
+  if (!ROLL_RE.test(roll)) throw new VerifyError("Enter the team leader's ERP ID first.");
   const listed = settings.rosterRequired ? getStudent(roll) : null;
   if (settings.rosterRequired && !listed) throw new VerifyError(NOT_LISTED);
   const email = listed?.email || clean(body?.email, 120).toLowerCase();
@@ -466,7 +464,7 @@ const verifyFail = (res, err, next) => (err instanceof VerifyError
 router.post(
   '/verify/send',
   express.json({ limit: '10kb' }),
-  rateLimit({ windowMs: 10 * 60 * 1000, max: Number(process.env.VERIFY_SEND_RATE_LIMIT) || 40, message: 'Too many verification emails were requested from your network. Wait 10 minutes and try again.' }),
+  rateLimit({ windowMs: 10 * 60 * 1000, max: Number(process.env.VERIFY_SEND_RATE_LIMIT) || 300, message: 'Too many verification emails were requested from your network. Wait 10 minutes and try again.' }),
   async (req, res, next) => {
     const settings = verificationOn(req, res);
     if (!settings) return;
@@ -492,7 +490,7 @@ router.post(
 router.post(
   '/verify/check',
   express.json({ limit: '10kb' }),
-  rateLimit({ windowMs: 10 * 60 * 1000, max: 120 }),
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 1500 }),
   (req, res, next) => {
     const settings = verificationOn(req, res);
     if (!settings) return;
@@ -513,11 +511,11 @@ router.post(
 router.post(
   '/status',
   express.json({ limit: '10kb' }),
-  rateLimit({ windowMs: 10 * 60 * 1000, max: 30 }),
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 600 }),
   (req, res) => {
     const code = clean(req.body?.code, 20).toUpperCase();
     const phone = cleanPhone(req.body?.phone);
-    const row = /^IDT26-[A-Z0-9]{6}$/.test(code) && PHONE_RE.test(phone) ? findStatus.get(code, phone) : null;
+    const row = REGISTRATION_ID_RE.test(code) && PHONE_RE.test(phone) ? findStatus.get(code, phone) : null;
     if (!row) return res.status(404).json({ error: 'No registration found for that ID and phone number.' });
     res.json({
       code: row.code,

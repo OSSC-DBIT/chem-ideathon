@@ -73,7 +73,7 @@ These keep the site safe and simple. Pull requests that break them will be asked
 - **A change in behaviour updates the docs** under `docs/` in the same pull request.
 - **Error messages are for students.** Say what went wrong and what to do next, in plain words.
 - **Never commit real data**: no `.env`, no database, no student lists, no payment screenshots,
-  and no real names or roll numbers in tests, issues or screenshots.
+  and no real names or ERP IDs in tests, issues or screenshots.
 
 ## Reporting a security problem
 

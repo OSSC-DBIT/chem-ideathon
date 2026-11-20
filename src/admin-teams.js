@@ -1,6 +1,7 @@
 import express from 'express';
 import { db, tx, audit, getSettings } from './db.js';
-import { clean, cleanPhone, cleanRoll, ROLL_RE, PHONE_RE, EMAIL_RE, UTR_RE, newCode } from './rules.js';
+import { clean, cleanPhone, cleanRoll, ROLL_RE, PHONE_RE, EMAIL_RE, UTR_RE } from './rules.js';
+import { findClash, eventWithHalf, nextRegistrationId } from './participation.js';
 import { getStudent, studentCount, tidySection } from './roster.js';
 import { sendMailLater, messages } from './mailer.js';
 
@@ -27,26 +28,16 @@ const int = (value, min, max, fallback) => {
 };
 
 const eventById = db.prepare('SELECT * FROM events WHERE id = ?');
-const regById = db.prepare('SELECT r.*, e.title AS event_title FROM registrations r JOIN events e ON e.id = r.event_id WHERE r.id = ?');
+const regById = db.prepare('SELECT r.*, e.title AS event_title, e.slot AS event_slot FROM registrations r JOIN events e ON e.id = r.event_id WHERE r.id = ?');
 const membersOf = db.prepare('SELECT name, roll, branch, phone, section FROM members WHERE registration_id = ? ORDER BY position');
 const liveCount = db.prepare("SELECT COUNT(*) AS n FROM registrations WHERE event_id = ? AND status != 'rejected' AND id != ?");
 const nameClash = db.prepare("SELECT code FROM registrations WHERE event_id = ? AND status != 'rejected' AND id != ? AND team_name = ? COLLATE NOCASE");
 const utrClash = db.prepare("SELECT code, team_name FROM registrations WHERE utr = ? AND status != 'rejected' AND id != ?");
-const rollClashAnywhere = db.prepare(`
-  SELECT r.code, r.team_name, e.title FROM members m
-  JOIN registrations r ON r.id = m.registration_id JOIN events e ON e.id = r.event_id
-  WHERE r.status != 'rejected' AND r.id != ? AND m.roll = ?
-`);
-const rollClashInEvent = db.prepare(`
-  SELECT r.code, r.team_name, e.title FROM members m
-  JOIN registrations r ON r.id = m.registration_id JOIN events e ON e.id = r.event_id
-  WHERE r.status != 'rejected' AND r.id != ? AND r.event_id = ? AND m.roll = ?
-`);
 const insertMember = db.prepare('INSERT INTO members (registration_id, position, name, roll, branch, phone, section) VALUES (?, ?, ?, ?, ?, ?, ?)');
 
 function toJson(row) {
   return {
-    id: row.id, code: row.code, eventId: row.event_id, eventTitle: row.event_title, teamName: row.team_name,
+    id: row.id, code: row.code, eventId: row.event_id, eventTitle: row.event_title, eventSlot: row.event_slot, teamName: row.team_name,
     leaderEmail: row.leader_email, leaderPhone: row.leader_phone, memberCount: row.member_count, amount: row.amount,
     utr: row.utr, status: row.status, rejectReason: row.reject_reason, decidedBy: row.decided_by, decidedAt: row.decided_at,
     createdAt: row.created_at, scanStatus: row.scan_status, source: row.source, note: row.note,
@@ -71,14 +62,14 @@ function readTeam(body, event, settings, selfId) {
     const listed = ROLL_RE.test(m.roll) ? getStudent(m.roll) : null;
 
     if (!ROLL_RE.test(m.roll)) {
-      errors[`m${i}-roll`] = 'Enter a valid roll number.';
+      errors[`m${i}-roll`] = 'Enter a valid ERP ID.';
     } else if (seen.has(m.roll)) {
-      errors[`m${i}-roll`] = 'This roll number is repeated in the team.';
+      errors[`m${i}-roll`] = 'This ERP ID is repeated in the team.';
     } else if (settings.rosterRequired && !listed) {
       errors[`m${i}-roll`] = 'Not on the student list. Add the student under Student list first.';
     } else {
-      const clash = settings.allowMultiEvent ? rollClashInEvent.get(selfId, event.id, m.roll) : rollClashAnywhere.get(selfId, m.roll);
-      if (clash) errors[`m${i}-roll`] = `Already in team "${clash.team_name}" (${clash.code}, ${clash.title}). Remove them there first.`;
+      const clash = findClash(settings, event, m.roll, selfId);
+      if (clash) errors[`m${i}-roll`] = `Already in team "${clash.team_name}" (${clash.code}, ${eventWithHalf(clash.title, clash.slot)}). Remove them there first.`;
     }
     seen.add(m.roll);
 
@@ -164,7 +155,7 @@ router.post('/registrations', (req, res) => {
       INSERT INTO registrations (code, event_id, team_name, leader_email, leader_phone, member_count, amount, utr,
         screenshot, status, decided_by, decided_at, created_at, scan_status, source, note)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, 'none', 'admin', ?)
-    `).run(newCode(), event.id, team.teamName, team.leaderEmail, team.members[0].phone, team.members.length, amount, team.utr,
+    `).run(nextRegistrationId(event.id), event.id, team.teamName, team.leaderEmail, team.members[0].phone, team.members.length, amount, team.utr,
       status, status === 'approved' ? req.admin.username : null, status === 'approved' ? now : null, now, team.note);
     const regId = Number(result.lastInsertRowid);
     team.members.forEach((m, i) => insertMember.run(regId, i, m.name, m.roll, m.branch, m.phone, m.section));
@@ -239,7 +230,7 @@ function readStudent(body) {
 
 const summary = () => ({ count: studentCount() });
 
-/** Who the given roll numbers belong to, with full details. For the team editor. */
+/** Who the given ERP IDs belong to, with full details. For the team editor. */
 router.post('/students/lookup', (req, res) => {
   const rolls = Array.isArray(req.body?.rolls) ? req.body.rolls.slice(0, 60) : [];
   const settings = getSettings();
@@ -255,8 +246,8 @@ router.post('/students/lookup', (req, res) => {
 router.post('/students', (req, res) => {
   const roll = cleanRoll(req.body?.roll);
   const { errors, student } = readStudent(req.body);
-  if (!ROLL_RE.test(roll) || !/\d/.test(roll)) errors.roll = 'Enter a valid roll number (3 to 20 letters and digits).';
-  else if (getStudent(roll)) errors.roll = 'This roll number is already on the list. Edit that student instead.';
+  if (!ROLL_RE.test(roll) || !/\d/.test(roll)) errors.roll = 'Enter a valid ERP ID (3 to 20 letters and digits).';
+  else if (getStudent(roll)) errors.roll = 'This ERP ID is already on the list. Edit that student instead.';
   if (Object.keys(errors).length) return res.status(400).json({ error: Object.values(errors)[0], fields: errors });
   db.prepare('INSERT INTO students (roll, name, branch, phone, email, section) VALUES (?, ?, ?, ?, ?, ?)')
     .run(roll, student.name, student.branch, student.phone, student.email, student.section);
@@ -267,7 +258,7 @@ router.post('/students', (req, res) => {
 router.put('/students/:roll', (req, res) => {
   const roll = cleanRoll(req.params.roll);
   const existing = getStudent(roll);
-  if (!existing) return res.status(404).json({ error: 'That roll number is not on the list.' });
+  if (!existing) return res.status(404).json({ error: 'That ERP ID is not on the list.' });
   const { errors, student } = readStudent(req.body);
   if (Object.keys(errors).length) return res.status(400).json({ error: Object.values(errors)[0], fields: errors });
 

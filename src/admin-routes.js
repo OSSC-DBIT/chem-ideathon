@@ -8,6 +8,7 @@ import {
 } from './security.js';
 import { statementRows, matchStatement } from './reconcile.js';
 import { router as teamRoutes } from './admin-teams.js';
+import { SLOTS, RULES, EVENT_CODE_RE, suggestEventCode, eventCodeTaken } from './participation.js';
 import { openFile, encryptionOn } from './vault.js';
 import { buildTable, toCsv, toXlsx } from './export.js';
 import { mailConfigured, mailInfo, mailsSentToday, sendMail, sendMailLater, messages, MailError, checkMailServer } from './mailer.js';
@@ -67,7 +68,7 @@ router.use(teamRoutes);
 // Registrations
 // ---------------------------------------------------------------------------
 const membersOf = db.prepare('SELECT name, roll, branch, phone, section FROM members WHERE registration_id = ? ORDER BY position');
-const getReg = db.prepare('SELECT r.*, e.title AS event_title FROM registrations r JOIN events e ON e.id = r.event_id WHERE r.id = ?');
+const getReg = db.prepare('SELECT r.*, e.title AS event_title, e.slot AS event_slot FROM registrations r JOIN events e ON e.id = r.event_id WHERE r.id = ?');
 const setStatus = db.prepare('UPDATE registrations SET status = ?, reject_reason = ?, decided_by = ?, decided_at = ? WHERE id = ?');
 const deleteReg = db.prepare('DELETE FROM registrations WHERE id = ?');
 
@@ -77,6 +78,7 @@ function regToJson(row) {
     code: row.code,
     eventId: row.event_id,
     eventTitle: row.event_title,
+    eventSlot: row.event_slot,
     teamName: row.team_name,
     leaderEmail: row.leader_email,
     leaderPhone: row.leader_phone,
@@ -103,6 +105,12 @@ function queryRegistrations(query) {
   const eventId = int(query.event, 1, 1e9, 0);
   if (eventId) { where.push('r.event_id = ?'); params.push(eventId); }
   if (['pending', 'approved', 'rejected'].includes(query.status)) { where.push('r.status = ?'); params.push(query.status); }
+  if (SLOTS.includes(query.half)) { where.push('e.slot = ?'); params.push(query.half); }
+  const branch = clean(query.branch, 40);
+  if (branch) {
+    where.push('EXISTS (SELECT 1 FROM members m WHERE m.registration_id = r.id AND m.branch = ? COLLATE NOCASE)');
+    params.push(branch);
+  }
   const section = tidySection(query.section);
   if (section) {
     where.push('EXISTS (SELECT 1 FROM members m WHERE m.registration_id = r.id AND m.section = ?)');
@@ -119,7 +127,7 @@ function queryRegistrations(query) {
     params.push(like, like, like, like, like, like, like);
   }
   const sql = `
-    SELECT r.*, e.title AS event_title FROM registrations r JOIN events e ON e.id = r.event_id
+    SELECT r.*, e.title AS event_title, e.slot AS event_slot FROM registrations r JOIN events e ON e.id = r.event_id
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY r.id DESC
   `;
   return db.prepare(sql).all(...params).map(regToJson);
@@ -190,7 +198,7 @@ router.post('/registrations/bulk-approve', (req, res) => {
   res.json({ approved });
 });
 
-// Clears out fake or unpaid entries in one go, which frees the roll numbers they were holding.
+// Clears out fake or unpaid entries in one go, which frees the ERP IDs they were holding.
 router.post('/registrations/bulk-reject', (req, res) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids.slice(0, 1000).map((id) => int(id, 1, 1e9, 0)).filter(Boolean) : [];
   const reason = clean(req.body?.reason, 200);
@@ -231,7 +239,8 @@ router.get('/export', async (req, res, next) => {
       res.set('Content-Disposition', `attachment; filename="${name}.json"`);
       return res.json(regs);
     }
-    const table = buildTable(regs, layout);
+    // A per participant export filtered by branch or section lists only the students who match.
+    const table = buildTable(regs, layout, { branch: clean(req.query.branch, 40), section: tidySection(req.query.section) });
     if (format === 'xlsx') {
       res.set({
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -304,7 +313,7 @@ function listEventsJson() {
   }));
 }
 
-function readEvent(body) {
+function readEvent(body, selfId = 0) {
   const title = clean(body?.title, 60);
   if (title.length < 2) return { error: 'Give the event a title.' };
   const teamBased = body?.teamBased === true;
@@ -316,10 +325,16 @@ function readEvent(body) {
   if (maxTeams == null) return { error: 'The limit must be 0 (no limit) or a whole number.' };
   const fee = int(body?.fee, 0, 100000, null);
   if (fee == null) return { error: 'Fee must be a whole number of rupees.' };
+  // The code that goes into registration IDs. Left empty, one is made from the title.
+  let code = clean(body?.code, 8).toUpperCase().replace(/\s/g, '');
+  if (!code) code = suggestEventCode(title, selfId);
+  if (!EVENT_CODE_RE.test(code)) return { error: 'The event code is 2 to 4 capital letters or digits, starting with a letter, for example PP.' };
+  if (eventCodeTaken(code, selfId)) return { error: `Another event already uses the code ${code}. Pick a different one.` };
+  const slot = SLOTS.includes(body?.slot) ? body.slot : '';
   return {
     value: {
       title, description: clean(body?.description, 240), teamBased, minMembers, maxMembers, maxTeams, fee,
-      isOpen: body?.isOpen !== false, sort: int(body?.sort, 0, 9999, 0),
+      isOpen: body?.isOpen !== false, sort: int(body?.sort, 0, 9999, 0), code, slot,
     },
   };
 }
@@ -330,9 +345,9 @@ router.post('/events', (req, res) => {
   const { error, value: v } = readEvent(req.body);
   if (error) return res.status(400).json({ error });
   db.prepare(`
-    INSERT INTO events (title, description, team_based, min_members, max_members, max_teams, fee, is_open, sort)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(v.title, v.description, v.teamBased ? 1 : 0, v.minMembers, v.maxMembers, v.maxTeams, v.fee, v.isOpen ? 1 : 0, v.sort);
+    INSERT INTO events (title, description, team_based, min_members, max_members, max_teams, fee, is_open, sort, code, slot)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(v.title, v.description, v.teamBased ? 1 : 0, v.minMembers, v.maxMembers, v.maxTeams, v.fee, v.isOpen ? 1 : 0, v.sort, v.code, v.slot);
   audit(req.admin.username, 'event.created', v.title);
   res.status(201).json({ events: listEventsJson() });
 });
@@ -340,12 +355,12 @@ router.post('/events', (req, res) => {
 router.put('/events/:id', (req, res) => {
   const existing = eventById.get(int(req.params.id, 1, 1e9, 0));
   if (!existing) return res.status(404).json({ error: 'Event not found.' });
-  const { error, value: v } = readEvent(req.body);
+  const { error, value: v } = readEvent(req.body, existing.id);
   if (error) return res.status(400).json({ error });
   db.prepare(`
     UPDATE events SET title = ?, description = ?, team_based = ?, min_members = ?, max_members = ?,
-      max_teams = ?, fee = ?, is_open = ?, sort = ? WHERE id = ?
-  `).run(v.title, v.description, v.teamBased ? 1 : 0, v.minMembers, v.maxMembers, v.maxTeams, v.fee, v.isOpen ? 1 : 0, v.sort, existing.id);
+      max_teams = ?, fee = ?, is_open = ?, sort = ?, code = ?, slot = ? WHERE id = ?
+  `).run(v.title, v.description, v.teamBased ? 1 : 0, v.minMembers, v.maxMembers, v.maxTeams, v.fee, v.isOpen ? 1 : 0, v.sort, v.code, v.slot, existing.id);
   audit(req.admin.username, 'event.updated', v.title);
   res.json({ events: listEventsJson() });
 });
@@ -409,7 +424,7 @@ router.post('/students/import', express.json({ limit: Math.ceil(MAX_STATEMENT_BY
   }
   const { students, skipped, problems } = readRoster(rows);
   if (students.size === 0) {
-    return res.status(400).json({ error: 'No students were found. The file needs a "Roll number" column and a "Name" column.', problems });
+    return res.status(400).json({ error: 'No students were found. The file needs a "ERP ID" column and a "Name" column.', problems });
   }
   const total = importStudents(students, mode);
   audit(req.admin.username, 'students.imported', `${students.size} students (${mode}), ${skipped} rows skipped`);
@@ -419,7 +434,7 @@ router.post('/students/import', express.json({ limit: Math.ceil(MAX_STATEMENT_BY
 router.delete('/students/:roll', (req, res) => {
   const roll = normaliseRoll(req.params.roll);
   const result = db.prepare('DELETE FROM students WHERE roll = ?').run(roll);
-  if (!result.changes) return res.status(404).json({ error: 'That roll number is not on the list.' });
+  if (!result.changes) return res.status(404).json({ error: 'That ERP ID is not on the list.' });
   if (studentCount() === 0) saveSettings({ rosterRequired: false });
   audit(req.admin.username, 'students.removed', roll);
   res.json(rosterSummary());
@@ -537,7 +552,10 @@ router.put('/settings', (req, res) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(b.eventDate)) return res.status(400).json({ error: 'Invalid event date.' });
     patch.eventDate = b.eventDate;
   }
-  if ('allowMultiEvent' in b) patch.allowMultiEvent = b.allowMultiEvent === true;
+  if ('participation' in b) {
+    if (!RULES.includes(b.participation)) return res.status(400).json({ error: 'Choose how many events a student may join.' });
+    patch.participation = b.participation;
+  }
   if ('rosterRequired' in b) {
     if (b.rosterRequired === true && studentCount() === 0) return res.status(400).json({ error: 'Upload the student list first.' });
     patch.rosterRequired = b.rosterRequired === true;

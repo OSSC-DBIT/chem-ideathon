@@ -24,7 +24,7 @@ app.get('/healthz', (req, res) => res.json({ ok: true }));
 
 // API: same origin writes only, a general rate limit, then the routers
 // (each route sets its own JSON body size limit).
-app.use('/api', sameOrigin, rateLimit({ windowMs: 60 * 1000, max: Number(process.env.API_RATE_LIMIT) || 600 }));
+app.use('/api', sameOrigin, rateLimit({ windowMs: 60 * 1000, max: Number(process.env.API_RATE_LIMIT) || 6000 }));
 app.use('/api/admin', adminRoutes);
 app.use('/api', publicRoutes);
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
