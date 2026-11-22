@@ -39,7 +39,7 @@ function toJson(row) {
   return {
     id: row.id, code: row.code, eventId: row.event_id, eventTitle: row.event_title, eventSlot: row.event_slot, teamName: row.team_name,
     leaderEmail: row.leader_email, leaderPhone: row.leader_phone, memberCount: row.member_count, amount: row.amount,
-    utr: row.utr, status: row.status, rejectReason: row.reject_reason, decidedBy: row.decided_by, decidedAt: row.decided_at,
+    utr: row.utr, payMethod: row.pay_method, status: row.status, rejectReason: row.reject_reason, decidedBy: row.decided_by, decidedAt: row.decided_at,
     createdAt: row.created_at, scanStatus: row.scan_status, source: row.source, note: row.note,
     hasScreenshot: !!row.screenshot, members: membersOf.all(row.id),
   };
@@ -153,10 +153,10 @@ router.post('/registrations', (req, res) => {
   const id = tx(() => {
     const result = db.prepare(`
       INSERT INTO registrations (code, event_id, team_name, leader_email, leader_phone, member_count, amount, utr,
-        screenshot, status, decided_by, decided_at, created_at, scan_status, source, note)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, 'none', 'admin', ?)
+        screenshot, status, decided_by, decided_at, created_at, scan_status, source, note, pay_method)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, 'none', 'admin', ?, ?)
     `).run(nextRegistrationId(event.id), event.id, team.teamName, team.leaderEmail, team.members[0].phone, team.members.length, amount, team.utr,
-      status, status === 'approved' ? req.admin.username : null, status === 'approved' ? now : null, now, team.note);
+      status, status === 'approved' ? req.admin.username : null, status === 'approved' ? now : null, now, team.note, team.utr ? 'upi' : 'cash');
     const regId = Number(result.lastInsertRowid);
     team.members.forEach((m, i) => insertMember.run(regId, i, m.name, m.roll, m.branch, m.phone, m.section));
     return regId;
@@ -186,9 +186,9 @@ router.put('/registrations/:id', (req, res) => {
   const amount = event.fee * team.members.length;
   tx(() => {
     db.prepare(`
-      UPDATE registrations SET team_name = ?, leader_email = ?, leader_phone = ?, member_count = ?, amount = ?, utr = ?, note = ?
+      UPDATE registrations SET team_name = ?, leader_email = ?, leader_phone = ?, member_count = ?, amount = ?, utr = ?, note = ?, pay_method = ?
       WHERE id = ?
-    `).run(team.teamName, team.leaderEmail, team.members[0].phone, team.members.length, amount, team.utr, team.note, row.id);
+    `).run(team.teamName, team.leaderEmail, team.members[0].phone, team.members.length, amount, team.utr, team.note, team.utr ? 'upi' : 'cash', row.id);
     db.prepare('DELETE FROM members WHERE registration_id = ?').run(row.id);
     team.members.forEach((m, i) => insertMember.run(row.id, i, m.name, m.roll, m.branch, m.phone, m.section));
   });

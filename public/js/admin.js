@@ -127,6 +127,9 @@
       stat('bg-green', 'Approved', o.approved.teams, `${o.approved.participants} participants`),
       stat('bg-yellow', 'Verified collection', rupees(o.approved.amount), 'from approved registrations'),
       stat('bg-white', 'Rejected', o.rejected.teams, `${o.rejected.participants} participants`),
+      ...(o.paymentMode !== 'upi' || o.cash.waiting || o.cash.collected
+        ? [stat('bg-blue', 'Cash to collect', rupees(o.cash.toCollect), `${o.cash.waiting} registration(s) waiting, ${rupees(o.cash.collected)} collected so far`)]
+        : []),
     );
 
     $('#fill').replaceChildren(...(o.events.length ? o.events.map((ev) => {
@@ -174,6 +177,7 @@
     if ($('#f-section').value) params.set('section', $('#f-section').value);
     if ($('#f-branch').value) params.set('branch', $('#f-branch').value);
     if ($('#f-half').value) params.set('half', $('#f-half').value);
+    if ($('#f-pay').value) params.set('pay', $('#f-pay').value);
     return params;
   }
 
@@ -200,7 +204,7 @@
     };
     const people = registrations.flatMap((r) => r.members);
     fill($('#f-section'), knownSections, people.map((m) => m.section), 'All sections');
-    fill($('#f-branch'), knownBranches, people.map((m) => m.branch), 'All branches');
+    fill($('#f-branch'), knownBranches, people.map((m) => m.branch), 'All departments');
   }
 
   async function loadRegistrations() {
@@ -209,6 +213,16 @@
     const participants = registrations.reduce((sum, r) => sum + r.memberCount, 0);
     $('#reg-count').textContent = `${registrations.length} registration(s), ${participants} participant(s)`;
     $('#reg-empty').hidden = registrations.length > 0;
+    const picked = (id) => { const sel = $(id); return sel.value ? sel.options[sel.selectedIndex].textContent : ''; };
+    const parts = [
+      picked('#f-event'), picked('#f-half'),
+      $('#f-branch').value && `department ${$('#f-branch').value}`,
+      $('#f-section').value && `section ${$('#f-section').value}`,
+      $('#f-status').value && `${$('#f-status').value} only`,
+      $('#f-pay').value && `paid by ${$('#f-pay').value === 'cash' ? 'cash' : 'UPI'}`,
+      $('#f-q').value.trim() && `matching "${$('#f-q').value.trim()}"`,
+    ].filter(Boolean);
+    $('#x-summary').textContent = parts.length ? parts.join(', ') : 'all registrations';
     await fillSectionFilter(registrations);
     $('#reg-rows').replaceChildren(...registrations.map((r) =>
       el('tr', { className: 'clickable', tabIndex: 0, onclick: () => openDetail(r), onkeydown: (e) => { if (e.key === 'Enter') openDetail(r); } },
@@ -218,7 +232,7 @@
         el('td', {}, r.members[0]?.name || '', el('small', {}, `${r.members[0]?.roll || ''}, ${r.leaderPhone}`)),
         el('td', {}, String(r.memberCount)),
         el('td', { className: 'nowrap' }, rupees(r.amount)),
-        el('td', { className: 'mono' }, r.utr || 'none'),
+        r.payMethod === 'cash' ? el('td', {}, el('span', { className: 'badge yellow' }, 'Cash')) : el('td', { className: 'mono' }, r.utr || 'none'),
         el('td', {}, el('span', { className: `badge ${r.status}` }, r.status)))));
   }
 
@@ -229,6 +243,7 @@
   $('#f-section').addEventListener('change', guard(loadRegistrations));
   $('#f-branch').addEventListener('change', guard(loadRegistrations));
   $('#f-half').addEventListener('change', guard(loadRegistrations));
+  $('#f-pay').addEventListener('change', guard(loadRegistrations));
 
   $$('[data-export]').forEach((button) => button.addEventListener('click', guard(async () => {
     const params = filterQuery();
@@ -267,7 +282,8 @@
     const actions = el('div', { className: 'detail-actions' });
     if (r.status === 'pending') {
       actions.append(
-        el('div', { className: 'btn-row' }, el('button', { type: 'button', className: 'btn green', onclick: decide('approved') }, 'Approve payment')),
+        el('div', { className: 'btn-row' }, el('button', { type: 'button', className: 'btn green', onclick: decide('approved') }, r.payMethod === 'cash' ? 'Mark cash received' : 'Approve payment'),
+          r.payMethod === 'cash' ? el('span', { className: 'small muted' }, `Press this once the team has paid ${rupees(r.amount)} in cash.`) : null),
         el('div', { className: 'field mt' }, el('label', { htmlFor: 'reject-reason' }, 'Or reject, with a reason the team will see'), reason),
         el('div', { className: 'btn-row mt' },
           el('button', { type: 'button', className: 'btn red', onclick: decide('rejected') }, 'Reject'),
@@ -302,6 +318,7 @@
               el('dt', {}, 'Event'), el('dd', {}, HALF[r.eventSlot] ? `${r.eventTitle} (${HALF[r.eventSlot]})` : r.eventTitle),
               el('dt', {}, 'Team'), el('dd', {}, r.teamName),
               el('dt', {}, 'Amount'), el('dd', {}, `${rupees(r.amount)} for ${r.memberCount} member(s)`),
+              el('dt', {}, 'Payment'), el('dd', {}, r.payMethod === 'cash' ? 'Cash, collected by the organisers' : 'UPI'),
               el('dt', {}, 'Transaction ID'), el('dd', { className: 'mono' }, r.utr || 'none'),
               r.note ? [el('dt', {}, 'Note'), el('dd', {}, r.note)] : null,
               r.source === 'admin' ? [el('dt', {}, 'Added'), el('dd', {}, 'By an organiser, not through the public form')] : null,
@@ -729,6 +746,7 @@
           el('span', { className: `badge ${ev.slot ? 'dark' : 'pending'}` }, HALF[ev.slot] || 'No half set'),
           el('span', { className: 'badge yellow' }, `ID code ${ev.code}`),
           el('span', { className: 'badge' }, size),
+          (ev.rules || []).length ? null : el('span', { className: 'badge pending' }, 'No rules written'),
           el('span', { className: 'badge' }, ev.maxTeams ? `Max ${ev.maxTeams} ${unit}` : 'No limit'),
           el('span', { className: 'badge' }, `${rupees(ev.fee)} per head`)),
         el('p', { className: 'small muted' }, `${ev.approved} approved, ${ev.pending} pending, ${ev.participants} participants`),
@@ -755,12 +773,13 @@
 
   function editEvent(ev) {
     const isNew = !ev;
-    const v = ev || { title: '', description: '', teamBased: true, minMembers: 5, maxMembers: 6, maxTeams: 15, fee: 50, isOpen: true, sort: events.length + 1, code: '', slot: '' };
+    const v = ev || { title: '', description: '', teamBased: true, minMembers: 5, maxMembers: 6, maxTeams: 15, fee: 50, isOpen: true, sort: events.length + 1, code: '', slot: '', rules: [] };
     const field = (id, label, input, hint) => el('div', { className: 'field' }, el('label', { htmlFor: id }, label), input, hint ? el('p', { className: 'hint' }, hint) : null);
     const num = (id, value, min, max) => el('input', { id, type: 'number', min: String(min), max: String(max), step: '1', value: String(value), inputMode: 'numeric' });
 
     const title = el('input', { id: 'e-title', type: 'text', maxLength: 60, value: v.title });
     const description = el('input', { id: 'e-desc', type: 'text', maxLength: 240, value: v.description });
+    const rules = el('textarea', { id: 'e-rules', rows: 7, value: (v.rules || []).join('\n') });
     const teamBased = el('input', { id: 'e-team', type: 'checkbox', checked: v.teamBased });
     const minMembers = num('e-min', v.minMembers, 1, 50);
     const maxMembers = num('e-max', v.maxMembers, 1, 50);
@@ -788,6 +807,7 @@
         error,
         field('e-title', 'Title', title),
         field('e-desc', 'Short description', description),
+        field('e-rules', 'Rules and format (one per line)', rules, 'Students see these before they can register for this event, and must tick that they have read them.'),
         el('label', { className: 'check' }, teamBased, el('span', {}, 'Team event (untick for a solo event)')),
         sizeRow,
         el('div', { className: 'grid2' },
@@ -808,7 +828,7 @@
       const body = {
         title: title.value, description: description.value, teamBased: teamBased.checked,
         minMembers: Number(minMembers.value), maxMembers: Number(maxMembers.value), maxTeams: Number(maxTeams.value),
-        fee: Number(fee.value), sort: Number(sort.value), isOpen: isOpen.checked, code: code.value, slot: slot.value,
+        fee: Number(fee.value), sort: Number(sort.value), isOpen: isOpen.checked, code: code.value, slot: slot.value, rules: rules.value,
       };
       try {
         events = (await call(isNew ? '/api/admin/events' : `/api/admin/events/${ev.id}`, { method: isNew ? 'POST' : 'PUT', body })).events;
@@ -953,7 +973,7 @@
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   };
   const fromLocalInput = (value) => (value ? new Date(value).toISOString() : '');
-  const TEXT_SETTINGS = ['upiId', 'upiName', 'eventName', 'eventDate', 'contactName', 'contactPhone', 'notice'];
+  const TEXT_SETTINGS = ['upiId', 'upiName', 'eventName', 'eventDate', 'contactName', 'contactPhone', 'notice', 'cashNote', 'paymentMode'];
 
   function syncSchedule() {
     $('#schedule-fields').hidden = $('input[name="regMode"]:checked')?.value !== 'scheduled';
@@ -967,6 +987,7 @@
     $('#closesAt').value = toLocalInput(settings.closesAt);
     TEXT_SETTINGS.forEach((key) => { $(`#${key}`).value = settings[key] ?? ''; });
     $('#participation').value = settings.participation;
+    $('#instructions').value = settings.instructions.join('\n');
     knownBranches = settings.branches;
     $('#branches').value = settings.branches.join('\n');
     $('#sections').value = settings.sections.join('\n');
@@ -1027,6 +1048,7 @@
       opensAt: fromLocalInput($('#opensAt').value),
       closesAt: fromLocalInput($('#closesAt').value),
       participation: $('#participation').value,
+      instructions: $('#instructions').value.split('\n'),
       branches: $('#branches').value.split('\n'),
       sections: $('#sections').value.split('\n'),
       allowOtherSection: $('#allowOtherSection').checked,

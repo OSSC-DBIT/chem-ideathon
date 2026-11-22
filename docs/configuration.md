@@ -120,7 +120,11 @@ Stored in the database, changed without a restart.
 | Setting | Where | Default |
 | --- | --- | --- |
 | Registration window: open, closed or scheduled | Settings | Open |
+| How the fee is collected: UPI or cash | Settings, Payment | UPI |
+| Where and to whom to pay in cash | Settings, Payment | The event coordinator at the Department of Chemistry |
 | UPI ID and payee name | Settings | From `.env` |
+| Instructions shown before a student picks an event | Settings, Rules | Seven general lines |
+| Each event's rules and format | Events | From the department's event flow document |
 | Event name, date, contact, notice | Settings | From the poster |
 | How many events a student may join | Settings, Rules | One event in each half |
 | Each event's half and ID code | Events | No half set; code made from the title |

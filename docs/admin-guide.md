@@ -17,7 +17,9 @@ There are two kinds of account.
 
 ## First time setup, in order
 
-1. **Settings**: enter the **UPI ID** and payee name. Registrations stay closed until a UPI ID is set.
+1. **Settings**: choose **how the fee is collected** (UPI or cash, one for everyone). For UPI enter the **UPI ID** and payee
+   name; for cash write **where and to whom to pay**. Registrations stay closed until there is a way to pay:
+   a UPI ID, or the cash option.
 2. **Student list**: upload the 1st year list (see below).
 3. **Student list**: press **Check connection**, then **Send test** to your own email.
 4. **Student list**: tick **Only students on this list can register** and
@@ -46,10 +48,15 @@ Warnings that can appear at the top:
 ## Registrations
 
 - **Search** matches registration ID, team name, any member's name or ERP ID, phone, email and
-  transaction ID. Filter by event, **half**, **branch**, **section** and status. The branch and section filters show
-  every team that has at least one member from that branch or section.
+  transaction ID. Filter by event, **half**, **department** (the student's branch), **section**, status and
+  **payment** (UPI or cash). The department and section filters show every team that has at least one
+  member from that department or section.
 - Click a row to open it: members, amount, transaction ID, and the payment screenshot (click the
   image for full size).
+- A registration that pays in **cash** shows a Cash badge instead of a transaction ID and has no screenshot.
+  Open it once the team has paid and press **Mark cash received**. Until then it stays pending. To clear
+  out teams that never paid, filter Payment = Cash and Status = Pending, then reject them with a reason;
+  that frees their slots and ERP IDs.
 - **Approve payment** confirms the team. **Reject** needs a reason; the team sees it in their status
   and by email. **Move back to pending** undoes an approval.
 - A rejected registration cannot be reopened. Rejecting frees the team's slot, ERP IDs and
@@ -101,7 +108,9 @@ confirmation email.
 
 ### Exports
 
-Exports follow the current search and filters.
+Exports follow the current search and filters: event, half, department, section, status and payment.
+The blue bar above the list says in words what the export will contain, for example
+"Poster Presentation, department ECE, section A". Set the filters, read that line, then press Excel or CSV.
 
 | Format | Use it for |
 | --- | --- |
@@ -120,6 +129,9 @@ Useful combinations:
 | Attendance sheet for the 1st half | Half = 1st half, One row per participant |
 | All ECE students taking part | Branch = ECE, One row per participant. Only the ECE students are listed, even from mixed teams. |
 | One class section | Section, One row per participant. Only that section's students are listed. |
+| One department's students in one event | Event and Department, One row per participant |
+| Who still has to pay in cash | Payment = Cash, Status = Pending, One row per team |
+| Cash collected so far | Payment = Cash, Status = Approved, One row per team. The Amount column adds up to the cash in hand. |
 | Teams still to be verified in one event | Event, Status = Pending, One row per team |
 
 With One row per team, a branch or section filter keeps the whole team if any member matches.
@@ -160,6 +172,7 @@ Add, edit and remove events.
 | Fee per participant | In rupees. The amount to pay is fee times team size. |
 | Position in the list | Lower numbers show first |
 | Accepting entries | Close one event without closing the others |
+| Rules and format | One rule per line. Students see them on the event card and again when they pick the event, and must tick that they have read them before they can continue. The five built in events start with rules taken from the department's event flow document; edit them freely. |
 | Half of the day | 1st half or 2nd half. A student can join one event in each half. An event with no half set counts as the whole day, so it clashes with every other event. **Set this for every event before opening registration.** |
 | Code for registration IDs | Two to four letters, for example PP for Poster Presentation or TB for Treasure Hunt + Bounty. Registration IDs are the code and a running number: `IDT26-TB001`, `IDT26-TB002`. Leave it empty and one is made from the title. Each event needs its own code. |
 
@@ -221,9 +234,14 @@ email on the list is wrong, fix the list (Add to the list and update existing, w
 ## Settings
 
 - **Registration window**: Open, Closed, or Scheduled with an opening and closing time.
-- **Payment**: UPI ID and the payee name students see.
+- **Payment**: how the fee is collected. **Online by UPI** asks for a transaction ID and a screenshot.
+  **In cash** asks for nothing online: the student registers, pays an organiser, and the organiser presses
+  Mark cash received. It is one or the other for everyone; students do not choose. Also here: the UPI ID and payee name, and the
+  line that tells cash payers where and to whom to pay. The Overview shows cash still to collect and
+  cash collected so far.
 - **Event details**: name, date, contact person and phone (shown publicly), and an optional notice on the home page.
-- **Rules**: how many events a student may join (**one event in each half** to start with; the other
+- **Rules**: the **instructions** shown in the "Read this first" box before a student picks an event
+  (one per line), how many events a student may join (**one event in each half** to start with; the other
   choices are one event only, or any number), the branch list used
   when the student list is off, and the **section list** students pick from (A to P to start with;
   change it to match your college). A section that comes from the student list is used as it is.

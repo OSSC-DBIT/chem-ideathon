@@ -21,8 +21,18 @@ Rules:
 
 ## Step 1: pick your event
 
-Each event card shows the team size, the fee per head and how many team slots are left. Events that
-are full or closed cannot be chosen.
+Start with the blue **Read this first** box at the top of the form: it holds the general instructions.
+
+Each event card shows the team size, the fee per head and how many team slots are left. Open
+**Rules and format** on a card to see how that event runs and how it is judged. Events that are full
+or closed cannot be chosen.
+
+When you pick an event, its rules appear under the list. Read them and tick **I have read the
+instructions and the rules of this event**; you cannot continue without it.
+
+**Moving between steps.** Press **Continue**, or tap the numbered steps at the top (1 Event, 2 Team,
+3 Payment, 4 Confirm). Tapping a later step takes you as far as your details allow and stops at the
+first step that still needs something. Tapping an earlier step takes you back; nothing you typed is lost.
 
 ## Step 2: add your team
 
@@ -39,6 +49,7 @@ Messages you may see under an ERP ID:
 | Message | What it means |
 | --- | --- |
 | This ERP ID is not in the 1st year student list | Typing mistake, or the student is missing from the list. Check the number; if it is right, contact the coordinator. |
+| Read the rules above, then tick this box to continue | Tick the box under the event's rules on step 1. |
 | This student is already registered for ... (1st half) | That student is already in a team for an event in the same half. Pick someone else, or choose an event in the other half. |
 | This is the same ERP ID as the team leader (or member 2, 3 ...) | You typed the same ERP ID twice. Each member needs their own. |
 | Select the section | Pick the member's section from the list, or choose Other and type it. |
@@ -61,7 +72,16 @@ When you press **Continue**, a box asks you to type five digits from an image, t
 
 If the email shown is not yours any more, contact the coordinator; it comes from the college's records.
 
-## Step 4: pay and upload proof
+## Step 4: pay
+
+The organisers decide how the fee is collected: by UPI or in cash. It is the same for everyone, so
+this step shows only that one way.
+
+**Paying in cash.** The page shows the amount and where and to whom to pay. There is nothing to
+upload. Continue, submit the registration, then pay. Your registration shows "Cash payment pending"
+until an organiser records your payment, and it can be cancelled if the fee is not paid.
+
+**Paying by UPI.**
 
 1. The page shows the **exact amount** and a **QR code**. On a phone, **Open UPI app** takes you
    straight to your UPI app with the amount filled in.

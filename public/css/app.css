@@ -235,12 +235,17 @@ dialog::backdrop { background: rgba(32, 33, 36, 0.6); }
 /* ----- Wizard ----- */
 .wizard { padding: clamp(18px, 3vw, 30px); }
 .stepper { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; list-style: none; margin: 0 0 26px; padding: 0; }
-.stepper li { border: var(--bw) solid var(--ink); border-radius: 10px; padding: 8px 10px; font-weight: 700; font-size: 0.9rem; background: var(--white); display: flex; align-items: center; gap: 8px; min-width: 0; }
-.stepper li b { font-family: var(--display); font-weight: 400; }
-.stepper li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stepper li.done { background: var(--green); }
-.stepper li.now { background: var(--ink); color: var(--yellow); box-shadow: 3px 3px 0 var(--yellow), 3px 3px 0 3px var(--ink); }
-@media (max-width: 560px) { .stepper li span { display: none; } .stepper li { justify-content: center; } }
+.stepper li { min-width: 0; }
+/* Each step is a button: students tap the numbers to move on, so they do exactly that. */
+.stepper button { width: 100%; border: var(--bw) solid var(--ink); border-radius: 10px; padding: 8px 10px; font: inherit; font-weight: 700; font-size: 0.9rem; color: inherit; background: var(--white); display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; cursor: pointer; text-align: left; box-shadow: 2px 2px 0 var(--ink); transition: transform 0.08s, box-shadow 0.08s; }
+.stepper button:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink); }
+.stepper button:active { transform: translate(2px, 2px); box-shadow: none; }
+.stepper button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.stepper button b { font-family: var(--display); font-weight: 400; }
+.stepper button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stepper li.done button { background: var(--green); }
+.stepper li.now button { background: var(--ink); color: var(--yellow); box-shadow: 3px 3px 0 var(--yellow), 3px 3px 0 3px var(--ink); cursor: default; transform: none; }
+@media (max-width: 560px) { .stepper button span { display: none; } .stepper button { justify-content: center; } }
 .step h3 { font-size: 1.4rem; margin-bottom: 6px; }
 .step > .muted { margin-bottom: 18px; }
 .wiz-nav { display: flex; justify-content: space-between; gap: 12px; margin-top: 26px; flex-wrap: wrap; }
@@ -576,3 +581,20 @@ select.locked, select:disabled { background: #f1ecd6; color: var(--ink); opacity
 .half-title { grid-column: 1 / -1; font-size: 1.25rem; margin: 6px 0 -6px; display: flex; align-items: center; gap: 12px; }
 .half-title::after { content: ""; flex: 1; border-top: var(--bw) solid var(--ink); }
 .half-title:first-child { margin-top: 0; }
+
+/* ---------- Instructions and event rules ---------- */
+.read-first { border: var(--bw) solid var(--ink); border-radius: 12px; background: #e8f4ff; padding: 16px 18px; margin-bottom: 22px; }
+.read-first h3 { font-size: 1.15rem; margin-bottom: 8px; }
+.read-first ul, .event-rules ul, .rules ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+.event-rules { border: var(--bw) solid var(--ink); border-radius: 12px; background: #fff3a8; padding: 16px 18px; margin-top: 16px; }
+.event-rules h4 { font-family: var(--display); font-weight: 400; text-transform: uppercase; font-size: 1.05rem; margin: 0 0 10px; }
+.event-rules .check { margin-top: 14px; font-weight: 700; }
+.rules { border-top: 2px solid var(--ink); padding-top: 8px; font-size: 0.92rem; }
+.rules summary { cursor: pointer; font-weight: 700; padding: 4px 0; }
+.rules ul { margin-top: 8px; font-weight: 500; }
+
+/* ---------- Paying in cash ---------- */
+.pay-cash { display: grid; gap: 8px; }
+.pay-cash p { margin: 0; }
+.ticket-cash { border: var(--bw) solid var(--ink); border-radius: 10px; background: var(--yellow); padding: 10px 14px; }
+.export-help { flex-basis: 100%; margin: 0; }

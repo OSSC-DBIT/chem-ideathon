@@ -33,8 +33,10 @@ promises; it is documented for people working on the code.
 ### `GET /api/public`
 
 Everything the page needs: event name and date, notice, branch list, section list, contact, whether the student
-list, email verification and multi event are on, the upload limit, the registration window
-(`open`, `upcoming` or `closed`, with times), and the events with `taken` and `full`.
+list and email verification are on, the participation rule, the upload limit, the registration window
+(`open`, `upcoming` or `closed`, with times), and the events with `taken`, `full` and `rules`
+(an array of lines). Also `instructions` (an array of lines), `paymentMethods` (`["upi"]` or `["cash"]`,
+never both; empty means nobody can pay yet and registration is closed) and `cashNote`.
 
 ### `GET /api/qr?amount=250`
 
@@ -102,7 +104,10 @@ registration as `verifyToken`. Five wrong codes cancel the code.
   `/api/public` too), any typed value of 1 to 20 letters, digits, spaces and `& / -` is accepted as
   well. If the student list has a section for that ERP ID, the list's value is used instead.
 - Send `verifyToken` when email verification is on, otherwise `captchaId` and `captchaAnswer`.
-- `201` with `{ "code", "eventTitle", "teamName", "teamBased", "memberCount", "amount", "status" }`.
+- `payMethod` is `"upi"` or `"cash"` and must be the one in `paymentMethods`; left out, that one
+  is used. A cash registration sends no `utr` and no `screenshot`, and is recognised on a resubmit by the
+  same event, leader ERP ID, leader phone and team size.
+- `201` with `{ "code", "eventTitle", "teamName", "teamBased", "memberCount", "amount", "status", "payMethod" }`.
   `code` is the registration ID: `IDT26-`, the event's code, and a number that runs per event (`IDT26-PP001`).
 - `200` with the same shape when the identical registration was already accepted (safe retry).
 
@@ -133,7 +138,7 @@ the `X-CSRF-Token` header with the value returned at sign in.
 
 | Method and path | Notes |
 | --- | --- |
-| `GET /registrations?q=&event=&half=&branch=&section=&status=` | List with members. `half` is `first` or `second`. `branch` and `section` keep teams with at least one member who matches. |
+| `GET /registrations?q=&event=&half=&branch=&section=&status=&pay=` | List with members. `half` is `first` or `second`. `pay` is `upi` or `cash`. `branch` and `section` keep teams with at least one member who matches. |
 | `GET /registrations/:id/screenshot` | The decrypted JPEG |
 | `POST /registrations/:id/decision` | `{ status: "approved" \| "rejected" \| "pending", reason }`; a reason is required to reject |
 | `POST /registrations` | Add a registration by hand. `{ eventId, teamName, leaderEmail, utr, note, status, members, override }`. No captcha, code or screenshot. |
@@ -156,7 +161,8 @@ statement `line`. Nothing is approved by this call.
 ### Events
 
 `GET /events`, `POST /events`, `PUT /events/:id`, `DELETE /events/:id`. Body:
-`{ title, description, teamBased, minMembers, maxMembers, maxTeams, fee, isOpen, sort, code, slot }`.
+`{ title, description, teamBased, minMembers, maxMembers, maxTeams, fee, isOpen, sort, code, slot, rules }`.
+`rules` is text with one rule per line, or an array of lines (up to 15, each up to 300 characters).
 `code` is 2 to 4 capital letters or digits and unique (made from the title when empty); `slot` is
 `first`, `second` or empty.
 
@@ -186,6 +192,6 @@ statement `line`. Nothing is approved by this call.
 
 | Method and path | Notes |
 | --- | --- |
-| `GET /settings`, `PUT /settings` | Any subset of: `regMode`, `opensAt`, `closesAt`, `upiId`, `upiName`, `eventName`, `eventDate`, `venue`, `notice`, `contactName`, `contactPhone`, `participation` (`perHalf`, `one` or `any`), `branches`, `sections`, `allowOtherSection`, `rosterRequired`, `matchLeaderPhone`, `emailVerification` |
+| `GET /settings`, `PUT /settings` | Any subset of: `regMode`, `opensAt`, `closesAt`, `upiId`, `upiName`, `paymentMode` (`upi` or `cash`), `cashNote`, `instructions` (text, one per line, or an array), `eventName`, `eventDate`, `venue`, `notice`, `contactName`, `contactPhone`, `participation` (`perHalf`, `one` or `any`), `branches`, `sections`, `allowOtherSection`, `rosterRequired`, `matchLeaderPhone`, `emailVerification` |
 | `GET /overview` | Totals, event fill, scanner and encryption state, student list summary |
 | `GET /audit` | The last 300 activity log entries |

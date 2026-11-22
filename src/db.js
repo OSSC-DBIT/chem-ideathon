@@ -189,6 +189,7 @@ db.exec(`
 function addColumn(table, column, definition) {
   const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
   if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  return !exists; // true when the column was added just now
 }
 addColumn('registrations', 'scan_status', "TEXT NOT NULL DEFAULT 'unscanned'"); // clean | unscanned
 addColumn('students', 'email', "TEXT NOT NULL DEFAULT ''");
@@ -199,6 +200,11 @@ addColumn('students', 'section', "TEXT NOT NULL DEFAULT ''");
 addColumn('events', 'code', "TEXT NOT NULL DEFAULT ''");         // short code used in registration IDs, for example PP
 addColumn('events', 'slot', "TEXT NOT NULL DEFAULT ''");         // first | second half of the day, or '' when not set
 addColumn('events', 'last_seq', 'INTEGER NOT NULL DEFAULT 0');   // running number of the event's registration IDs
+const rulesAdded = addColumn('events', 'rules', "TEXT NOT NULL DEFAULT ''"); // rules and format, one per line
+// How the team pays: upi (transaction ID and screenshot) or cash (collected by the organisers).
+if (addColumn('registrations', 'pay_method', "TEXT NOT NULL DEFAULT 'upi'")) {
+  db.exec("UPDATE registrations SET pay_method = 'cash' WHERE utr = ''"); // hand added teams with no transaction ID
+}
 
 // ---------------------------------------------------------------------------
 // Settings: a small key/value store, edited from the admin panel.
@@ -212,6 +218,17 @@ const DEFAULT_SETTINGS = {
   closesAt: '',
   upiId: (process.env.UPI_ID || '').trim(),
   upiName: (process.env.UPI_NAME || 'Ideathon 26').trim(),
+  paymentMode: 'upi',         // upi: paid online | cash: collected by the organisers. One or the other, never a choice.
+  cashNote: 'Pay the amount in cash to the event coordinator at the Department of Chemistry and tell them your registration ID.',
+  instructions: [             // shown before a student picks an event
+    'Open to 1st year students of Don Bosco Institute of Technology only.',
+    'The entry fee is per participant, for each event.',
+    'The team leader registers the whole team. Keep every member\'s ERP ID and section ready.',
+    'Read the rules of the event before you register for it.',
+    'Details cannot be changed after you submit. For a correction, contact the coordinator.',
+    'A registration is confirmed only after the organisers have recorded the payment.',
+    'Winners get prize money and every participant gets a certificate.',
+  ],
   notice: '',
   branches: ['CSE', 'ISE', 'ECE', 'EEE', 'AI & ML', 'AI & DS', 'Mechanical', 'Civil'],
   sections: 'ABCDEFGHIJKLMNOP'.split(''),               // A to P: the sections students can pick from
@@ -280,6 +297,15 @@ export function audit(actor, action, detail = '') {
   insertAudit.run(new Date().toISOString(), actor, action, String(detail).slice(0, 500));
 }
 
+/**
+ * How teams pay right now: ['cash'], ['upi'], or [] when UPI is chosen but no UPI ID is set yet
+ * (nobody can pay, so registration stays closed). Always one way at most.
+ */
+export function payMethods(settings = getSettings()) {
+  if (settings.paymentMode === 'cash') return ['cash'];
+  return settings.upiId ? ['upi'] : [];
+}
+
 export function eventToJson(row) {
   return {
     id: row.id,
@@ -295,13 +321,14 @@ export function eventToJson(row) {
     archived: !!row.archived,
     code: row.code,
     slot: row.slot,
+    rules: row.rules ? row.rules.split('\n') : [],
   };
 }
 
 /** Registration window state, computed from settings. */
 export function registrationState(settings = getSettings()) {
   const base = { opensAt: settings.opensAt || null, closesAt: settings.closesAt || null };
-  if (!settings.upiId) {
+  if (!payMethods(settings).length) {
     return { ...base, state: 'closed', message: 'Registrations are not open yet. Payment details are being set up.' };
   }
   if (settings.regMode === 'closed') return { ...base, state: 'closed', message: 'Registrations are closed.' };
@@ -316,12 +343,48 @@ export function registrationState(settings = getSettings()) {
 }
 
 // ---------------------------------------------------------------------------
-// First run: seed the events from the poster.
+// First run: seed the events from the poster. The rules come from the department's event flow
+// document; organisers edit them under Events.
 // ---------------------------------------------------------------------------
+const EVENT_RULES = {
+  'Poster Presentation': [
+    'Present innovative research, models or concepts visually, as a team.',
+    'How it runs: registration and setup, station briefing, interactive presentation, question and answer session, final scoring.',
+    'Be ready to answer the judges\' questions about your poster.',
+    'Judged on: innovation, scientific depth, visual appeal, clarity, and how well you answer questions.',
+  ],
+  'Technical & General Quiz': [
+    'A multi-round team quiz on technology, current affairs, pop culture and logical reasoning.',
+    'How it runs: rule briefing, an opening elimination or MCQ round, then visual, audio or logic rounds, a rapid-fire round, and the final round.',
+    'The team may discuss among themselves in every round.',
+    'Scores are verified after each stage. Winners are decided on total points.',
+    'Judged on: correct answers, response speed, consistency across rounds, and the final point tally.',
+  ],
+  'Cooking Without Fire': [
+    'Prepare your dishes without any heat source.',
+    'How it runs: registration and briefing, preparation and assembly, display and plating, judging, winner announcement.',
+    'Be ready to explain your dish and your choices to the judges.',
+    'Judged on: balance of taste and texture, culinary creativity, hygiene, plating, and the team\'s reasoning.',
+  ],
+  'Photo & Video Editing': [
+    'A timed solo challenge. Raw photos or videos and an editing brief are given to every participant at the start.',
+    'Edit within the fixed time, using the tools you prefer: trimming, colour correction, enhancement and sequencing.',
+    'Export your final version in the format the organisers ask for.',
+    'You may be asked to briefly present or explain your editing choices.',
+    'Judged on: creativity, technical skill, storytelling, polish, and presentation quality.',
+  ],
+  'Treasure Hunt + Bounty': [
+    'Check in as a team and attend the rules briefing. Each team gets an opening clue and a scoring sheet.',
+    'Clue stations lead your team across the venue. Mini-challenges unlock the next clue or give a scoring advantage.',
+    'Bounty tasks are optional bonus missions that carry extra points.',
+    'The final checkpoint checks the clues you completed, your bonus scores and your finish time.',
+    'Judged on: accuracy, clues solved, bounty tasks completed, teamwork, and completion time.',
+  ],
+};
 if (db.prepare('SELECT COUNT(*) AS n FROM events').get().n === 0) {
   const insert = db.prepare(`
-    INSERT INTO events (title, description, team_based, min_members, max_members, max_teams, fee, sort)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO events (title, description, team_based, min_members, max_members, max_teams, fee, sort, rules)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const seed = [
     ['Poster Presentation', 'Innovative research, models and concepts, presented visually.', 1, 5, 6, 15],
@@ -330,5 +393,12 @@ if (db.prepare('SELECT COUNT(*) AS n FROM events').get().n === 0) {
     ['Photo & Video Editing', 'A timed solo media challenge with visual storytelling.', 0, 1, 1, 0],
     ['Treasure Hunt + Bounty', 'Clues, bonus tasks and coordination across the campus.', 1, 5, 6, 15],
   ];
-  seed.forEach(([title, description, team, min, max, cap], i) => insert.run(title, description, team, min, max, cap, 50, i + 1));
+  seed.forEach(([title, description, team, min, max, cap], i) =>
+    insert.run(title, description, team, min, max, cap, 50, i + 1, (EVENT_RULES[title] || []).join('\n')));
+}
+
+// A database from before events had rules: fill in the rules of the built in events, once.
+if (rulesAdded) {
+  const fill = db.prepare("UPDATE events SET rules = ? WHERE title = ? AND rules = ''");
+  for (const [title, lines] of Object.entries(EVENT_RULES)) fill.run(lines.join('\n'), title);
 }

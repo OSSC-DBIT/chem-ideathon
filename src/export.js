@@ -4,6 +4,7 @@ const ist = (iso) =>
   iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : '';
 
 const HALF = { first: '1st half', second: '2nd half' };
+const PAID_BY = (r) => (r.payMethod === 'cash' ? 'Cash' : 'UPI');
 
 /**
  * Builds { columns, rows } for either layout. `regs` carry a `members` array.
@@ -11,14 +12,14 @@ const HALF = { first: '1st half', second: '2nd half' };
  */
 export function buildTable(regs, layout, only = {}) {
   if (layout === 'participants') {
-    const columns = ['Reg ID', 'Event', 'Half', 'Team', 'Role', 'Name', 'ERP ID', 'Branch', 'Section', 'Phone', 'Status', 'Team amount (Rs)', 'Transaction ID'];
+    const columns = ['Reg ID', 'Event', 'Half', 'Team', 'Role', 'Name', 'ERP ID', 'Department', 'Section', 'Phone', 'Status', 'Team amount (Rs)', 'Payment', 'Transaction ID'];
     const wantBranch = (only.branch || '').toLowerCase();
     const rows = [];
     for (const r of regs) {
       r.members.forEach((m, i) => {
         if (wantBranch && String(m.branch).toLowerCase() !== wantBranch) return;
         if (only.section && m.section !== only.section) return;
-        rows.push([r.code, r.eventTitle, HALF[r.eventSlot] || '', r.teamName, i === 0 ? 'Leader' : 'Member', m.name, m.roll, m.branch, m.section, m.phone, r.status, r.amount, r.utr]);
+        rows.push([r.code, r.eventTitle, HALF[r.eventSlot] || '', r.teamName, i === 0 ? 'Leader' : 'Member', m.name, m.roll, m.branch, m.section, m.phone, r.status, r.amount, PAID_BY(r), r.utr]);
       });
     }
     return { columns, rows };
@@ -26,13 +27,13 @@ export function buildTable(regs, layout, only = {}) {
 
   const columns = [
     'Reg ID', 'Event', 'Half', 'Team', 'Members', 'Leader name', 'Leader ERP ID', 'Leader phone', 'Leader email',
-    'All members', 'Amount (Rs)', 'Transaction ID', 'Status', 'Reject reason', 'Registered at', 'Decided at', 'Decided by',
+    'All members', 'Amount (Rs)', 'Payment', 'Transaction ID', 'Status', 'Reject reason', 'Registered at', 'Decided at', 'Decided by',
     'Added by', 'Note',
   ];
   const rows = regs.map((r) => [
     r.code, r.eventTitle, HALF[r.eventSlot] || '', r.teamName, r.memberCount, r.members[0]?.name || '', r.members[0]?.roll || '',
     r.leaderPhone, r.leaderEmail, r.members.map((m) => `${m.name} (${[m.roll, m.branch, m.section && `Sec ${m.section}`].filter(Boolean).join(', ')})`).join('; '),
-    r.amount, r.utr, r.status, r.rejectReason, ist(r.createdAt), ist(r.decidedAt), r.decidedBy || '',
+    r.amount, PAID_BY(r), r.utr, r.status, r.rejectReason, ist(r.createdAt), ist(r.decidedAt), r.decidedBy || '',
     r.source === 'admin' ? 'Organiser' : 'Student', r.note || '',
   ]);
   return { columns, rows };

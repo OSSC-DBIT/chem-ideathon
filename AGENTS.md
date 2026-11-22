@@ -73,7 +73,7 @@ public/privacy.html       Privacy policy
 public/img/               Poster art, DBIT header, OSSC logo, and the email sized copies (mail-*.jpg)
 
 scripts/check-config.mjs      Settings are consistent across code, compose file, .env.example and docs
-scripts/smoke-test.sh         End to end API tests (about 170 checks)
+scripts/smoke-test.sh         End to end API tests (about 280 checks)
 scripts/encryption-test.sh    Encryption across restarts: convert, wrong key, key change
 scripts/backup.sh, restore.sh Encrypted backup, and restore with correct file ownership
 scripts/make-test-image.mjs   Test images for the API tests
@@ -89,8 +89,8 @@ docker-compose.yml        app (Node), nginx, clamav. Only nginx is published, on
 
 | Table | Holds |
 | --- | --- |
-| `events` | Title, team or solo, min and max size, limit, fee, open, order, archived, `code`, `slot` (half), `last_seq` |
-| `registrations` | Code, event, team name, leader email and phone, size, amount, transaction ID, screenshot file, status (`pending`, `approved`, `rejected`), who decided, scan status, source (`online` or `admin`), note |
+| `events` | Title, team or solo, min and max size, limit, fee, open, order, archived, `code`, `slot` (half), `last_seq`, `rules` (one per line) |
+| `registrations` | Code, event, team name, leader email and phone, size, amount, `pay_method` (`upi` or `cash`), transaction ID, screenshot file, status (`pending`, `approved`, `rejected`), who decided, scan status, source (`online` or `admin`), note |
 | `members` | Per registration: position (0 is the leader), name, roll, branch, section, phone |
 | `students` | The uploaded list: roll, name, branch, section, phone, email |
 | `organisers` | Username, salt, scrypt hash. The owner account is not here; it lives in `.env` |
@@ -212,7 +212,7 @@ Keeping things in step
 - The app runs with a read only filesystem as an unprivileged user. Write only under `DATA_DIR`, and
   never copy files into the data volume with `docker cp` alone (they become root owned); use
   `scripts/restore.sh`.
-- `registrationState()` reports closed when no UPI ID is set. Tests set `UPI_ID`.
+- `registrationState()` reports closed when there is no way to pay (UPI mode with no UPI ID). Tests set `UPI_ID`.
 - Registration IDs come from `nextRegistrationId()` and must be taken inside the transaction that
   inserts the registration, so a failed insert does not use up a number. Numbers are never reused.
 - The label is "ERP ID" everywhere a person reads it; in the code and the API the field is still `roll`.
@@ -221,8 +221,13 @@ Keeping things in step
 - Sharp renders SVG without fonts in the container, which is why the captcha draws digits as strokes.
 - The mail library does its own DNS lookup and ignores `/etc/hosts`. `src/mailer.js` resolves the name
   itself and passes `servername` for TLS; keep that when touching the transport.
-- Hand added registrations have an empty `screenshot` and may have an empty `utr`. Code that reads
-  either must cope with that.
+- Hand added registrations have an empty `screenshot` and may have an empty `utr`, and so does every
+  registration that pays in cash (`pay_method` is `cash`). Code that reads either must cope with that.
+- The fee is collected by UPI or in cash, one way for everyone (`paymentMode`); there is no mixed
+  mode by request of the organisers. Ask `payMethods(settings)` in `src/db.js` which one applies; do not test `upiId` directly. Registration is closed when it
+  returns nothing. A cash registration skips the transaction ID, the screenshot and the virus scan,
+  never the captcha or the email token.
+- The rules tick box on step 1 of the form is a reminder for the student, checked in the browser only.
 - A member's section comes from the student list when the list has one (and is then locked in the
   form); otherwise the student picks from the `sections` setting (A to P by default), or chooses "Other"
   and types one when `allowOtherSection` is on. `tidySection()` normalises "sec a" to "A" and does

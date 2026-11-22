@@ -191,14 +191,16 @@ export const messages = {
   received(to, r) {
     const lines = [
       `We have received your registration for ${r.eventTitle}${r.teamBased ? ` (team "${r.teamName}", ${r.memberCount} members)` : ''}. Your registration ID is:`,
-      `Amount: Rs. ${r.amount}. The organisers will now verify your payment. You will get another email when it is confirmed.`,
+      r.payMethod === 'cash'
+        ? `Amount to pay in cash: Rs. ${r.amount}. ${r.cashNote || ''} You will get another email when the organisers have recorded your payment.`.replace(/\s+/g, ' ')
+        : `Amount: Rs. ${r.amount}. The organisers will now verify your payment. You will get another email when it is confirmed.`,
       'Keep this ID. With the team leader\'s phone number, it lets you check your status on the site.',
     ];
     return { to, subject: `Ideathon '26: registration received (${r.code})`, text: plain(lines, r.code), html: layout('Registration received', lines, r.code) };
   },
   approved(to, r) {
     const lines = [
-      `Your payment is verified and your registration for ${r.eventTitle} is confirmed. Registration ID:`,
+      `Your payment is ${r.payMethod === 'cash' ? 'received' : 'verified'} and your registration for ${r.eventTitle} is confirmed. Registration ID:`,
       'Show this ID at the registration desk on the event day. See you there.',
     ];
     return { to, subject: `Ideathon '26: you are confirmed (${r.code})`, text: plain(lines, r.code), html: layout('You are confirmed', lines, r.code) };

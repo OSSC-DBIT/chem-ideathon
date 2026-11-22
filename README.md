@@ -37,7 +37,11 @@ Built and maintained by [OSSC (OpenSource Students Club), DBIT](https://webuildn
 - **Student list**: upload the 1st year list; only listed students can register. Add or correct a single
   student without uploading again.
 - **Organiser accounts**: each organiser signs in as themselves; the owner adds and removes accounts.
-- **Filters**: by event, half, branch, section and status. Exports follow the filters, so "ECE students in the
+- **Rules before registering**: general instructions and each event's rules are shown before a student picks an
+  event, and must be ticked as read. Organisers edit both in the admin panel.
+- **UPI or cash**: the fee is collected online by UPI (transaction ID and screenshot), in cash by the organisers
+  (who press "Mark cash received"). The organisers pick one; students do not choose.
+- **Filters**: by event, half, department, section, status and payment. Exports follow the filters, so "ECE students in the
   1st half" is one click.
 - **Activity log**: sign ins, approvals, rejections, exports and setting changes, with who did it.
 

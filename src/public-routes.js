@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import QRCode from 'qrcode';
-import { db, tx, getSettings, registrationState, eventToJson, UPLOAD_DIR } from './db.js';
+import { db, tx, getSettings, registrationState, eventToJson, payMethods, UPLOAD_DIR } from './db.js';
 import { rateLimit } from './security.js';
 import { clean, cleanPhone, NAME_RE, ROLL_RE, PHONE_RE, EMAIL_RE, UTR_RE, SECTION_RE } from './rules.js';
 import { findClash, eventWithHalf, ruleSentence, nextRegistrationId, REGISTRATION_ID_RE } from './participation.js';
@@ -36,15 +36,23 @@ const utrTaken = db.prepare(`
   FROM registrations WHERE utr = ? AND status != 'rejected'
 `);
 const leaderRoll = db.prepare('SELECT roll FROM members WHERE registration_id = ? AND position = 0');
+// A cash registration has no transaction ID to recognise a repeat by, so the same leader, phone,
+// event and team size stand in for it.
+const cashPrior = db.prepare(`
+  SELECT r.id, r.code, r.status, r.team_name, r.member_count, r.amount
+  FROM registrations r JOIN members m ON m.registration_id = r.id AND m.position = 0
+  WHERE r.event_id = ? AND m.roll = ? AND r.leader_phone = ? AND r.member_count = ?
+    AND r.pay_method = 'cash' AND r.source = 'online' AND r.status != 'rejected'
+`);
 const insertReg = db.prepare(`
-  INSERT INTO registrations (code, event_id, team_name, leader_email, leader_phone, member_count, amount, utr, screenshot, created_at, scan_status)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO registrations (code, event_id, team_name, leader_email, leader_phone, member_count, amount, utr, screenshot, created_at, scan_status, pay_method)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 const insertMember = db.prepare(
   'INSERT INTO members (registration_id, position, name, roll, branch, phone, section) VALUES (?, ?, ?, ?, ?, ?, ?)',
 );
 const findStatus = db.prepare(`
-  SELECT r.code, r.team_name, r.member_count, r.amount, r.status, r.reject_reason, r.created_at, e.title AS event_title
+  SELECT r.code, r.team_name, r.member_count, r.amount, r.status, r.reject_reason, r.created_at, r.pay_method, e.title AS event_title
   FROM registrations r JOIN events e ON e.id = r.event_id
   WHERE r.code = ? AND r.leader_phone = ?
 `);
@@ -61,6 +69,9 @@ router.get('/public', (req, res) => {
     venue: settings.venue,
     notice: settings.notice,
     participation: settings.participation,
+    paymentMethods: payMethods(settings),   // ['upi'] or ['cash']: the organisers decide, the student does not choose
+    cashNote: settings.cashNote,
+    instructions: settings.instructions,
     rosterRequired: settings.rosterRequired,
     emailVerification: settings.emailVerification && mailConfigured,
     maxScreenshotMb: limits.screenshotMb,
@@ -76,7 +87,7 @@ router.get('/public', (req, res) => {
       return {
         id: ev.id, title: ev.title, description: ev.description, teamBased: ev.teamBased,
         minMembers: ev.minMembers, maxMembers: ev.maxMembers, maxTeams: ev.maxTeams, fee: ev.fee,
-        isOpen: ev.isOpen, taken: row.taken, full, code: ev.code, slot: ev.slot,
+        isOpen: ev.isOpen, taken: row.taken, full, code: ev.code, slot: ev.slot, rules: ev.rules,
       };
     }),
   });
@@ -187,21 +198,32 @@ function validate(body, event, settings) {
     teamName = members[0]?.name || '';
   }
 
-  const utr = clean(body.utr, 30).replace(/\s/g, '');
-  if (!UTR_RE.test(utr)) errors.utr = 'Enter the 12 digit UPI transaction ID (UTR).';
+  // How the team pays. A cash registration carries no transaction ID and no screenshot.
+  const methods = payMethods(settings);
+  const payMethod = ['upi', 'cash'].includes(body.payMethod) ? body.payMethod : methods[0];
+  if (!methods.includes(payMethod)) {
+    errors.payMethod = payMethod === 'cash'
+      ? 'Cash payment is not available. Pay by UPI.'
+      : 'UPI payment is not available. The fee is collected in cash.';
+  }
 
-  // Cheap checks only (type, size, file signature). The full decode and virus scan come later.
+  let utr = '';
   let shot = null;
-  try {
-    shot = decodeImageDataUrl(body.screenshot);
-  } catch (err) {
-    errors.screenshot = err.message;
+  if (payMethod === 'upi') {
+    utr = clean(body.utr, 30).replace(/\s/g, '');
+    if (!UTR_RE.test(utr)) errors.utr = 'Enter the 12 digit UPI transaction ID (UTR).';
+    // Cheap checks only (type, size, file signature). The full decode and virus scan come later.
+    try {
+      shot = decodeImageDataUrl(body.screenshot);
+    } catch (err) {
+      errors.screenshot = err.message;
+    }
   }
 
   if (body.consentPrivacy !== true) errors.consentPrivacy = 'You need to accept the privacy policy.';
   if (body.consentFirstYear !== true) errors.consentFirstYear = 'Please confirm this.';
 
-  return { errors, data: { members, email, teamName, utr, shot } };
+  return { errors, data: { members, email, teamName, utr, shot, payMethod } };
 }
 
 /**
@@ -281,7 +303,18 @@ router.post(
     // the virus scan or any image work. The very same registration sent again (double tap, or a
     // retry after the connection dropped) gets the original answer; anything else is refused.
     // Nothing costly can be triggered by reusing a known transaction ID.
-    const prior = utrTaken.get(data.utr);
+    const cash = data.payMethod === 'cash';
+    const replay = (row) => ({
+      code: row.code, eventTitle: event.title, teamName: row.team_name, teamBased: !!event.team_based,
+      memberCount: row.member_count, amount: row.amount, status: row.status, payMethod: data.payMethod,
+    });
+    // The same cash registration sent again gets the original answer too.
+    const findCashPrior = () => cashPrior.get(event.id, data.members[0].roll, data.members[0].phone, data.members.length);
+    if (cash) {
+      const same = findCashPrior();
+      if (same) return res.status(200).json(replay(same));
+    }
+    const prior = cash ? null : utrTaken.get(data.utr);
     if (prior) {
       if (!isSameRegistration(prior, event, data)) {
         return res.status(409).json({
@@ -289,10 +322,7 @@ router.post(
           fields: { utr: 'This transaction ID is already used for another registration.' },
         });
       }
-      return res.status(200).json({
-        code: prior.code, eventTitle: event.title, teamName: prior.team_name, teamBased: !!event.team_based,
-        memberCount: prior.member_count, amount: prior.amount, status: prior.status,
-      });
+      return res.status(200).json(replay(prior));
     }
 
     // Tell people about clashes before spending their captcha (the same check runs again inside the transaction).
@@ -316,19 +346,21 @@ router.post(
     }
 
     // Virus scan the upload exactly as received, then decode it and keep only a re-encoded JPEG.
-    let image;
-    let scanStatus;
-    try {
-      scanStatus = await scanOrThrow(data.shot, 'payment screenshot');
-      image = await sanitiseImage(data.shot);
-    } catch (err) {
-      if (!(err instanceof UploadError)) return next(err);
-      if (err.signature) audit('system', 'upload.blocked', `screenshot, ${err.signature}, ip ${req.ip}`);
-      return res.status(err.status).json({ error: err.message, fields: { screenshot: err.message } });
+    let image = null;
+    let scanStatus = 'none'; // a cash registration has no upload
+    if (!cash) {
+      try {
+        scanStatus = await scanOrThrow(data.shot, 'payment screenshot');
+        image = await sanitiseImage(data.shot);
+      } catch (err) {
+        if (!(err instanceof UploadError)) return next(err);
+        if (err.signature) audit('system', 'upload.blocked', `screenshot, ${err.signature}, ip ${req.ip}`);
+        return res.status(err.status).json({ error: err.message, fields: { screenshot: err.message } });
+      }
     }
 
-    const fileName = `${crypto.randomBytes(16).toString('hex')}.jpg`;
-    const filePath = path.join(UPLOAD_DIR, fileName);
+    const fileName = cash ? '' : `${crypto.randomBytes(16).toString('hex')}.jpg`;
+    const filePath = cash ? '' : path.join(UPLOAD_DIR, fileName);
     const amount = event.fee * data.members.length;
 
     try {
@@ -336,19 +368,19 @@ router.post(
         // A resubmit of the very same registration (double tap, or a retry after the
         // connection dropped) returns the original instead of an error.
         // Checked again inside the transaction, in case two requests raced past the first check.
-        const racing = utrTaken.get(data.utr);
+        const racing = cash ? findCashPrior() : utrTaken.get(data.utr);
         if (racing) {
-          if (isSameRegistration(racing, event, data)) return { code: racing.code, status: racing.status, teamName: racing.team_name, replay: true };
+          if (cash || isSameRegistration(racing, event, data)) return { code: racing.code, status: racing.status, teamName: racing.team_name, replay: true };
           throw new Conflict('This transaction ID has already been used.', { utr: 'This transaction ID is already used for another registration.' });
         }
         const conflict = findConflict(event, settings, data.teamName, data.members.map((m) => m.roll));
         if (conflict) throw new Conflict(conflict.message, conflict.fields);
 
-        fs.writeFileSync(filePath, sealFile(image), { mode: 0o600 }); // encrypted on disk
+        if (image) fs.writeFileSync(filePath, sealFile(image), { mode: 0o600 }); // encrypted on disk
         const regCode = nextRegistrationId(event.id);
         const result = insertReg.run(
           regCode, event.id, data.teamName, data.email, data.members[0].phone,
-          data.members.length, amount, data.utr, fileName, new Date().toISOString(), scanStatus,
+          data.members.length, amount, data.utr, fileName, new Date().toISOString(), scanStatus, data.payMethod,
         );
         const regId = Number(result.lastInsertRowid);
         data.members.forEach((m, i) => insertMember.run(regId, i, m.name, m.roll, m.branch, m.phone, m.section));
@@ -359,7 +391,7 @@ router.post(
         if (mustVerifyEmail) useToken(body.verifyToken);
         sendMailLater(messages.received(data.email, {
           code: saved.code, eventTitle: event.title, teamName: data.teamName, teamBased: !!event.team_based,
-          memberCount: data.members.length, amount,
+          memberCount: data.members.length, amount, payMethod: data.payMethod, cashNote: settings.cashNote,
         }));
       }
 
@@ -371,9 +403,10 @@ router.post(
         memberCount: data.members.length,
         amount,
         status: saved.status,
+        payMethod: data.payMethod,
       });
     } catch (err) {
-      fs.rm(filePath, { force: true }, () => {});
+      if (filePath) fs.rm(filePath, { force: true }, () => {});
       if (err instanceof Conflict) return res.status(409).json({ error: err.message, fields: err.fields });
       next(err);
     }
@@ -524,6 +557,7 @@ router.post(
       memberCount: row.member_count,
       amount: row.amount,
       status: row.status,
+      payMethod: row.pay_method,
       rejectReason: row.reject_reason,
       createdAt: row.created_at,
     });

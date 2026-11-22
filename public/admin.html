@@ -51,7 +51,7 @@
       <!-- Overview -->
       <section data-view="overview" hidden>
         <div class="alert warn" id="scan-warning" hidden></div>
-        <div class="alert warn" id="upi-warning" hidden>No UPI ID is set, so registrations are closed. Add one under Settings.</div>
+        <div class="alert warn" id="upi-warning" hidden>No way to pay is set up, so registrations are closed. Under Settings, add a UPI ID or switch the fee to cash.</div>
         <div class="stats" id="stats"></div>
         <div class="two-col">
           <div class="card">
@@ -101,8 +101,8 @@
             </select>
           </div>
           <div class="field">
-            <label for="f-branch">Branch</label>
-            <select id="f-branch"><option value="">All branches</option></select>
+            <label for="f-branch">Department</label>
+            <select id="f-branch"><option value="">All departments</option></select>
           </div>
           <div class="field">
             <label for="f-section">Section</label>
@@ -117,9 +117,17 @@
               <option value="rejected">Rejected</option>
             </select>
           </div>
+          <div class="field">
+            <label for="f-pay">Payment</label>
+            <select id="f-pay">
+              <option value="">UPI and cash</option>
+              <option value="cash">Cash</option>
+              <option value="upi">UPI</option>
+            </select>
+          </div>
         </div>
         <div class="card flat bg-blue export-bar">
-          <strong>Export what is shown</strong> <span class="small">(the filters above apply):</span>
+          <strong>Export:</strong> <span id="x-summary">all registrations</span>
           <label class="sr-only" for="x-layout">Export layout</label>
           <select id="x-layout">
             <option value="teams">One row per team</option>
@@ -129,6 +137,7 @@
           <button type="button" class="btn sm white" data-export="csv">CSV</button>
           <button type="button" class="btn sm white" data-export="json">JSON</button>
           <span class="small" id="reg-count"></span>
+          <p class="small export-help">The export contains exactly what the filters above show. Pick an event, a department, a section, a half, a status or a payment type, then press a button. "One row per participant" with a department or section lists only those students.</p>
         </div>
         <div class="card table-card">
           <div class="table-scroll">
@@ -312,6 +321,18 @@
 
           <div class="card">
             <h3>Payment</h3>
+            <div class="field">
+              <label for="paymentMode">How is the fee collected?</label>
+              <select id="paymentMode">
+                <option value="upi">Online by UPI (transaction ID and screenshot)</option>
+                <option value="cash">In cash, collected by the organisers</option>
+              </select>
+              <p class="hint">It is one or the other for everyone. With cash, a student registers without paying online. The registration stays pending until an organiser opens it and presses "Mark cash received".</p>
+            </div>
+            <div class="field">
+              <label for="cashNote">Where and to whom to pay in cash <span class="opt">(shown to students who pay in cash)</span></label>
+              <input id="cashNote" type="text" maxlength="300">
+            </div>
             <div class="grid2">
               <div class="field">
                 <label for="upiId">UPI ID</label>
@@ -341,6 +362,11 @@
 
           <div class="card">
             <h3>Rules</h3>
+            <div class="field">
+              <label for="instructions">Instructions shown before a student picks an event <span class="opt">(one per line)</span></label>
+              <textarea id="instructions" rows="7"></textarea>
+              <p class="hint">Each event also has its own rules: open the event under Events to edit them.</p>
+            </div>
             <div class="field">
               <label for="participation">How many events can one student join?</label>
               <select id="participation">

@@ -23,6 +23,8 @@
   let emailFromList = false; // the leader's email is supplied by the student list
   let verifyToken = '';      // proof from the server that the leader's email was verified
   let verifiedFor = '';      // which leader + email that proof belongs to
+  /** How the fee is collected, 'upi' or 'cash'. The organisers set it; there is nothing to choose. */
+  const paysBy = () => info.paymentMethods[0] || 'upi';
 
   const store = {
     get(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
@@ -68,6 +70,13 @@
     $('#how-team').textContent = info.emailVerification
       ? 'The team leader adds every member by ERP ID, then confirms their email with a code we send.'
       : "The team leader fills in every member's name, ERP ID and section.";
+    const cashOnly = paysBy() === 'cash';
+    $('#how-pay-title').textContent = cashOnly ? 'Pay in cash' : 'Pay by UPI';
+    $('#how-pay').textContent = cashOnly
+      ? 'Submit the registration, then hand the fee to the organisers in cash. No screenshot is needed.'
+      : 'Scan the QR, pay the exact amount, then enter the transaction ID and upload the screenshot.';
+    $('#instructions').replaceChildren(...info.instructions.map((line) => el('li', {}, line)));
+    $('#read-first').hidden = info.instructions.length === 0;
     const titles = info.events.map((ev) => ev.title);
     const run = [...titles, ...titles, ...titles, ...titles];
     $('#marquee').replaceChildren(...[...run, ...run].map((t) => el('span', {}, t)));
@@ -112,6 +121,9 @@
           ev.slot ? el('span', { className: 'badge dark' }, HALF[ev.slot]) : null,
           el('span', { className: 'badge' }, teamSizeText(ev)),
           el('span', { className: 'badge' }, `${rupees(ev.fee)} per head`)),
+        ev.rules.length ? el('details', { className: 'rules' },
+          el('summary', {}, 'Rules and format'),
+          el('ul', {}, ...ev.rules.map((line) => el('li', {}, line)))) : null,
         el('div', { className: 'foot' },
           left == null
             ? el('span', { className: 'slots' }, 'Open entry')
@@ -177,16 +189,32 @@
     }));
   }
 
+  function renderEventRules() {
+    const box = $('#event-rules');
+    box.hidden = !event;
+    if (!event) return;
+    $('#event-rules-title').textContent = `Rules for ${event.title}`;
+    const facts = [
+      event.slot ? `This event is in the ${HALF[event.slot]}.` : null,
+      `${event.teamBased ? teamSizeText(event) : 'Solo event'}. Entry fee: ${rupees(event.fee)} per participant.`,
+    ].filter(Boolean);
+    $('#event-rules-list').replaceChildren(...[...facts, ...event.rules].map((line) => el('li', {}, line)));
+  }
+
   function chooseEvent(id, jump = true) {
     const ev = info.events.find((e) => e.id === id);
     if (!ev || !canRegister(ev)) return;
+    if (event?.id !== ev.id) $('#rulesRead').checked = false; // another event, other rules
+    setFieldError('event', '');
     event = ev;
     while (members.length < ev.minMembers) members.push(blank());
     members.length = Math.min(members.length, ev.maxMembers);
     renderPick();
+    renderEventRules();
     renderTeam();
     saveDraft();
-    if (jump && info.registration.state === 'open' && $('#ticket').hidden) showStep(2);
+    // "Register" on an event card lands on the first step with that event chosen, so its rules are read first.
+    if (jump && info.registration.state === 'open' && $('#ticket').hidden) showStep(1);
   }
 
   function memberField(i, key, label, props = {}) {
@@ -432,8 +460,17 @@
 
   async function renderPayment() {
     const amount = members.length * event.fee;
+    const cash = paysBy() === 'cash';
+    $('#pay-upi').hidden = cash;
+    $('#pay-cash').hidden = !cash;
+    $('#pay-title').textContent = cash ? 'Pay in cash' : 'Pay and upload proof';
+    $('#pay-lede').textContent = cash
+      ? 'The fee for this registration is collected by the organisers in cash.'
+      : 'Pay the exact amount in one transaction. The organisers match it against the bank statement.';
+    $('#cash-amount').textContent = rupees(amount);
+    $('#cash-note').textContent = info.cashNote;
     $('#pay-amount').textContent = rupees(amount);
-    if (qrAmount === amount) return;
+    if (cash || qrAmount === amount) return;
     try {
       const pay = await api(`/api/qr?amount=${amount}`);
       $('#qr').src = pay.qr;
@@ -668,8 +705,9 @@
       ...row(event.teamBased ? 'Members' : 'Participant',
         el('ol', {}, ...members.map((m) => el('li', {}, `${m.name.trim()} (${[m.roll.trim().toUpperCase(), m.branch, m.section && `Section ${m.section}`].filter(Boolean).join(', ')})`)))),
       ...row('Contact', `${members[0].phone.trim()}, ${$('#email').value.trim()}`),
-      ...row('Amount paid', rupees(members.length * event.fee)),
-      ...row('Transaction ID', $('#utr').value.trim()),
+      ...(paysBy() === 'cash'
+        ? [...row('Amount to pay', rupees(members.length * event.fee)), ...row('Payment', 'In cash, to the organisers')]
+        : [...row('Amount paid', rupees(members.length * event.fee)), ...row('Transaction ID', $('#utr').value.trim())]),
     );
   }
 
@@ -691,8 +729,8 @@
   }
 
   function stepOf(key) {
-    if (key === 'event') return 1;
-    if (key === 'utr' || key === 'screenshot') return 3;
+    if (key === 'event' || key === 'rulesRead') return 1;
+    if (key === 'utr' || key === 'screenshot' || key === 'payMethod') return 3;
     if (key.startsWith('consent') || key === 'captcha') return 4;
     return 2;
   }
@@ -711,6 +749,7 @@
   function validateStep(n) {
     const errors = {};
     if (n === 1 && !event) errors.event = 'Pick an event to continue.';
+    else if (n === 1 && !$('#rulesRead').checked) errors.rulesRead = 'Read the rules above, then tick this box to continue.';
     if (n === 2) {
       if (event.teamBased && $('#teamName').value.trim().length < 2) errors.teamName = 'Enter a team name.';
       if (!emailFromList && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test($('#email').value.trim())) errors.email = 'Enter a valid email address.';
@@ -728,7 +767,7 @@
         if ((i === 0 || phone) && !/^[6-9]\d{9}$/.test(phone)) errors[`m${i}-phone`] = 'Enter a valid 10 digit mobile number.';
       });
     }
-    if (n === 3) {
+    if (n === 3 && paysBy() === 'upi') {
       if (!/^\d{12}$/.test($('#utr').value.trim())) errors.utr = 'Enter the 12 digit UPI transaction ID.';
       if (!screenshot) errors.screenshot = 'Attach your payment screenshot.';
     }
@@ -751,7 +790,8 @@
     $$('.step', wizard).forEach((s) => { s.hidden = Number(s.dataset.step) !== n; });
     $$('#stepper li').forEach((li, i) => {
       li.className = i + 1 < n ? 'done' : i + 1 === n ? 'now' : '';
-      if (i + 1 === n) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+      const tab = li.firstElementChild;
+      if (i + 1 === n) tab.setAttribute('aria-current', 'step'); else tab.removeAttribute('aria-current');
     });
     $('#back').hidden = n === 1;
     $('#next').hidden = n === 4;
@@ -772,11 +812,13 @@
     if (id && !/^m\d+-/.test(id) && id !== 'screenshot') setFieldError(id, '');
   });
 
-  $('#next').addEventListener('click', async () => {
+  /** Moves one step forward if the current step is complete. Returns true when it moved. */
+  async function advance() {
+    const from = step;
     clearErrors();
     if (step === 2 && info.rosterRequired) await liveCheck(); // make sure names are filled in before checking
-    if (!validateStep(step)) return;
-    if (step !== 2) { showStep(step + 1); return; }
+    if (!validateStep(step)) return false;
+    if (step !== 2) { showStep(step + 1); return true; }
     // Before anyone pays: make sure the team name is free and no member is already in another team or event.
     await busy($('#next'), 'Checking team...', async () => {
       try {
@@ -795,8 +837,25 @@
         if ([400, 403].includes(err.status) || err.fields?.event) load(false);
       }
     });
-  });
+    return step > from;
+  }
+  $('#next').addEventListener('click', advance);
   $('#back').addEventListener('click', () => { clearErrors(); showStep(step - 1); });
+
+  // The numbered tabs work too: an earlier one goes back, a later one continues as far as the
+  // details allow, stopping at the first step that still needs something.
+  let moving = false;
+  $$('#stepper button').forEach((tab) => tab.addEventListener('click', async () => {
+    const target = Number(tab.dataset.go);
+    if (moving || target === step) return;
+    if (target < step) { clearErrors(); showStep(target); return; }
+    moving = true;
+    try {
+      while (step < target) if (!(await advance())) break;
+    } finally {
+      moving = false;
+    }
+  }));
 
   // Enter inside a field must not submit the whole form from an early step. It behaves like
   // "next field" instead, and on the last field of a step it moves to the Continue button.
@@ -829,8 +888,9 @@
           teamName: $('#teamName').value,
           email: $('#email').value,
           members,
-          utr: $('#utr').value,
-          screenshot,
+          payMethod: paysBy(),
+          utr: paysBy() === 'cash' ? '' : $('#utr').value,
+          screenshot: paysBy() === 'cash' ? '' : screenshot,
           consentPrivacy: $('#consentPrivacy').checked,
           consentFirstYear: $('#consentFirstYear').checked,
           captchaId,
@@ -840,7 +900,7 @@
       });
       captchaId = '';
       const phone = members[0].phone.replace(/[\s-]/g, '').replace(/^(\+91|0)/, '');
-      store.set(TICKETS_KEY, [{ code: result.code, phone, label: `${result.eventTitle}: ${result.teamName}` }, ...store.get(TICKETS_KEY, [])].slice(0, 10));
+      store.set(TICKETS_KEY, [{ code: result.code, phone, label: `${result.eventTitle}: ${result.teamName}` }, ...store.get(TICKETS_KEY, []).filter((t) => t.code !== result.code)].slice(0, 10));
       store.del(DRAFT_KEY);
       showTicket(result);
       renderSaved();
@@ -861,8 +921,13 @@
   });
 
   function showTicket(t) {
+    const cash = t.payMethod === 'cash';
     $('#t-code').textContent = t.code;
-    const rows = [['Event', t.eventTitle], [t.teamBased ? 'Team' : 'Participant', t.teamName], ['Members', t.memberCount], ['Amount', rupees(t.amount)]];
+    $('#t-badge').textContent = t.status === 'approved' ? 'Confirmed' : cash ? 'Cash payment pending' : 'Payment verification pending';
+    $('#t-badge').className = `badge ${t.status === 'approved' ? 'approved' : 'pending'}`;
+    $('#t-cash').hidden = !cash || t.status === 'approved';
+    $('#t-cash').replaceChildren(el('strong', {}, `Now pay ${rupees(t.amount)} in cash. `), info.cashNote);
+    const rows = [['Event', t.eventTitle], [t.teamBased ? 'Team' : 'Participant', t.teamName], ['Members', t.memberCount], [cash ? 'To pay in cash' : 'Amount', rupees(t.amount)]];
     $('#t-rows').replaceChildren(...rows.flatMap(([k, v]) => [el('span', {}, k), el('span', {}, String(v))]));
     wizard.hidden = true;
     const ticket = $('#ticket');
@@ -886,6 +951,8 @@
     $('#shot-preview').hidden = true;
     $('#consentPrivacy').checked = false;
     $('#consentFirstYear').checked = false;
+    $('#rulesRead').checked = false;
+    renderEventRules();
     captchaId = '';
     verifyToken = '';
     verifiedFor = '';
@@ -956,13 +1023,16 @@
     try {
       const s = await api('/api/status', { method: 'POST', body: { code, phone } });
       const tone = { pending: 'warn', approved: 'ok', rejected: 'error' }[s.status];
+      const cash = s.payMethod === 'cash';
       const note = {
-        pending: 'The organisers have not verified your payment yet. Check again later.',
+        pending: cash
+          ? `Waiting for your cash payment of ${rupees(s.amount)}. ${info?.cashNote || ''} If you have already paid, the organisers have not recorded it yet.`
+          : 'The organisers have not verified your payment yet. Check again later.',
         approved: 'You are in. Show this registration ID at the venue on the event day.',
         rejected: `Reason: ${s.rejectReason || 'not given'}. You can register again with the correct details.`,
       }[s.status];
       out.replaceChildren(el('div', { className: `alert ${tone}` },
-        el('p', {}, el('span', { className: `badge ${s.status}` }, STATUS_TEXT[s.status])),
+        el('p', {}, el('span', { className: `badge ${s.status}` }, cash && s.status === 'pending' ? 'Cash payment pending' : STATUS_TEXT[s.status])),
         el('p', {}, el('strong', {}, `${s.code}: ${s.eventTitle}`), `, ${s.teamName}, ${s.memberCount} member(s), ${rupees(s.amount)}`),
         el('p', {}, note),
         el('p', { className: 'small' }, `Registered on ${dateTime(s.createdAt)}`)));
@@ -1002,6 +1072,8 @@
     renderStatic();
     renderEvents();
     renderPick();
+    renderEventRules();
+    if (step === 3 && event && !wizard.hidden) renderPayment(); // the ways to pay may have changed
     if (first) {
       booted = true;
       restoreDraft();

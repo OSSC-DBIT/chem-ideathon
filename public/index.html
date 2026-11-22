@@ -78,8 +78,8 @@
       <ol class="steps">
         <li class="card bg-yellow"><strong>Pick an event</strong><span id="rule-step">Each student can take part in one event, so choose well.</span></li>
         <li class="card bg-pink"><strong>Add your team</strong><span id="how-team">The team leader fills in every member's name, ERP ID and section.</span></li>
-        <li class="card bg-blue"><strong>Pay by UPI</strong>Scan the QR, pay the exact amount, then enter the transaction ID and upload the screenshot.</li>
-        <li class="card bg-green"><strong>Get confirmed</strong>The organisers verify the payment. Track it any time with your registration ID. Winners get prize money, and everyone gets a certificate.</li>
+        <li class="card bg-blue"><strong id="how-pay-title">Pay the fee</strong><span id="how-pay">Scan the QR, pay the exact amount, then enter the transaction ID and upload the screenshot.</span></li>
+        <li class="card bg-green"><strong>Get confirmed</strong>The organisers record the payment. Track it any time with your registration ID. Winners get prize money, and everyone gets a certificate.</li>
       </ol>
     </section>
 
@@ -99,9 +99,10 @@
       </div>
 
       <div class="card bg-green ticket" id="ticket" hidden tabindex="-1">
-        <span class="badge pending">Payment verification pending</span>
+        <span class="badge pending" id="t-badge">Payment verification pending</span>
         <p class="code" id="t-code"></p>
         <p><strong>Save this registration ID.</strong> You need it, with the leader's phone number, to check your status.</p>
+        <p class="ticket-cash" id="t-cash" hidden></p>
         <div class="ticket-rows" id="t-rows"></div>
         <div class="btn-row center">
           <button type="button" class="btn white" id="t-copy">Copy ID</button>
@@ -110,20 +111,30 @@
       </div>
 
       <form class="card wizard" id="wizard" novalidate hidden>
-        <ol class="stepper" id="stepper" aria-label="Progress">
-          <li><b>1</b><span>Event</span></li>
-          <li><b>2</b><span>Team</span></li>
-          <li><b>3</b><span>Payment</span></li>
-          <li><b>4</b><span>Confirm</span></li>
+        <ol class="stepper" id="stepper" aria-label="Steps of the registration">
+          <li><button type="button" data-go="1"><b>1</b><span>Event</span></button></li>
+          <li><button type="button" data-go="2"><b>2</b><span>Team</span></button></li>
+          <li><button type="button" data-go="3"><b>3</b><span>Payment</span></button></li>
+          <li><button type="button" data-go="4"><b>4</b><span>Confirm</span></button></li>
         </ol>
 
         <div class="alert error" id="form-error" role="alert" hidden></div>
 
         <div class="step" data-step="1">
+          <div class="read-first" id="read-first" hidden>
+            <h3>Read this first</h3>
+            <ul id="instructions"></ul>
+          </div>
           <h3>Pick your event</h3>
           <p class="muted" id="rule-hint">Each student can take part in one event only.</p>
           <div class="pick" id="pick" role="radiogroup" aria-label="Event"></div>
           <p class="err" data-err="event"></p>
+          <div class="event-rules" id="event-rules" hidden>
+            <h4 id="event-rules-title"></h4>
+            <ul id="event-rules-list"></ul>
+            <label class="check"><input type="checkbox" id="rulesRead"><span>I have read the instructions and the rules of this event.</span></label>
+            <p class="err" data-err="rulesRead"></p>
+          </div>
         </div>
 
         <div class="step" data-step="2" hidden>
@@ -151,8 +162,16 @@
         </div>
 
         <div class="step" data-step="3" hidden>
-          <h3>Pay and upload proof</h3>
-          <p class="muted">Pay the exact amount in one transaction. The organisers match it against the bank statement.</p>
+          <h3 id="pay-title">Pay and upload proof</h3>
+          <p class="muted" id="pay-lede">Pay the exact amount in one transaction. The organisers match it against the bank statement.</p>
+          <p class="err" data-err="payMethod"></p>
+          <div class="card flat bg-yellow pay-cash" id="pay-cash" hidden>
+            <p class="label">Amount to pay in cash</p>
+            <p class="amount" id="cash-amount"></p>
+            <p id="cash-note"></p>
+            <p class="small">Submit this registration first, then pay. It stays "pending" until an organiser records your payment, and it can be cancelled if the fee is not paid.</p>
+          </div>
+          <div id="pay-upi">
           <div class="pay">
             <div class="qr-box"><img id="qr" alt="UPI QR code for the registration fee" width="420" height="420"></div>
             <div>
@@ -180,6 +199,7 @@
               <p class="hint">JPG, PNG or WebP, up to 10 MB. It must show the amount and the transaction ID. Every upload is virus scanned.</p>
               <p class="err" data-err="screenshot"></p>
             </div>
+          </div>
           </div>
         </div>
 

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
-import { db, tx, audit, getSettings, saveSettings, registrationState, eventToJson, UPLOAD_DIR } from './db.js';
+import { db, tx, audit, getSettings, saveSettings, registrationState, eventToJson, UPLOAD_DIR, payMethods } from './db.js';
 import {
   requireAdmin, checkCredentials, createSession, destroySession, getSession, rateLimit, adminConfigured,
   requireOwner, isOwner, OWNER, MIN_PASSWORD, listOrganisers, addOrganiser, removeOrganiser, changeOwnPassword,
@@ -85,6 +85,7 @@ function regToJson(row) {
     memberCount: row.member_count,
     amount: row.amount,
     utr: row.utr,
+    payMethod: row.pay_method,
     status: row.status,
     rejectReason: row.reject_reason,
     decidedBy: row.decided_by,
@@ -106,6 +107,7 @@ function queryRegistrations(query) {
   if (eventId) { where.push('r.event_id = ?'); params.push(eventId); }
   if (['pending', 'approved', 'rejected'].includes(query.status)) { where.push('r.status = ?'); params.push(query.status); }
   if (SLOTS.includes(query.half)) { where.push('e.slot = ?'); params.push(query.half); }
+  if (['upi', 'cash'].includes(query.pay)) { where.push('r.pay_method = ?'); params.push(query.pay); }
   const branch = clean(query.branch, 40);
   if (branch) {
     where.push('EXISTS (SELECT 1 FROM members m WHERE m.registration_id = r.id AND m.branch = ? COLLATE NOCASE)');
@@ -170,7 +172,7 @@ function decide(id, status, reason, actor) {
     status === 'pending' ? null : new Date().toISOString(), id);
   audit(actor, `registration.${status}`, `${row.code} ${row.team_name}${reason ? ` | ${reason}` : ''}`);
   // Tell the team leader by email (when email is set up). Never blocks or fails the decision.
-  if (status === 'approved') sendMailLater(messages.approved(row.leader_email, { code: row.code, eventTitle: row.event_title }));
+  if (status === 'approved') sendMailLater(messages.approved(row.leader_email, { code: row.code, eventTitle: row.event_title, payMethod: row.pay_method }));
   if (status === 'rejected') sendMailLater(messages.rejected(row.leader_email, { code: row.code, eventTitle: row.event_title, reason }));
   return { ok: true };
 }
@@ -313,6 +315,12 @@ function listEventsJson() {
   }));
 }
 
+/** A list typed one per line (or sent as an array): tidied, empty lines dropped, capped in count and length. */
+function textLines(value, maxLines, maxLength) {
+  const lines = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/\r?\n/) : [];
+  return lines.map((line) => clean(line, maxLength).replace(/^[-*\u2022]\s*/, '')).filter(Boolean).slice(0, maxLines);
+}
+
 function readEvent(body, selfId = 0) {
   const title = clean(body?.title, 60);
   if (title.length < 2) return { error: 'Give the event a title.' };
@@ -334,7 +342,7 @@ function readEvent(body, selfId = 0) {
   return {
     value: {
       title, description: clean(body?.description, 240), teamBased, minMembers, maxMembers, maxTeams, fee,
-      isOpen: body?.isOpen !== false, sort: int(body?.sort, 0, 9999, 0), code, slot,
+      isOpen: body?.isOpen !== false, sort: int(body?.sort, 0, 9999, 0), code, slot, rules: textLines(body?.rules, 15, 300).join('\n'),
     },
   };
 }
@@ -345,9 +353,9 @@ router.post('/events', (req, res) => {
   const { error, value: v } = readEvent(req.body);
   if (error) return res.status(400).json({ error });
   db.prepare(`
-    INSERT INTO events (title, description, team_based, min_members, max_members, max_teams, fee, is_open, sort, code, slot)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(v.title, v.description, v.teamBased ? 1 : 0, v.minMembers, v.maxMembers, v.maxTeams, v.fee, v.isOpen ? 1 : 0, v.sort, v.code, v.slot);
+    INSERT INTO events (title, description, team_based, min_members, max_members, max_teams, fee, is_open, sort, code, slot, rules)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(v.title, v.description, v.teamBased ? 1 : 0, v.minMembers, v.maxMembers, v.maxTeams, v.fee, v.isOpen ? 1 : 0, v.sort, v.code, v.slot, v.rules);
   audit(req.admin.username, 'event.created', v.title);
   res.status(201).json({ events: listEventsJson() });
 });
@@ -359,8 +367,8 @@ router.put('/events/:id', (req, res) => {
   if (error) return res.status(400).json({ error });
   db.prepare(`
     UPDATE events SET title = ?, description = ?, team_based = ?, min_members = ?, max_members = ?,
-      max_teams = ?, fee = ?, is_open = ?, sort = ?, code = ?, slot = ? WHERE id = ?
-  `).run(v.title, v.description, v.teamBased ? 1 : 0, v.minMembers, v.maxMembers, v.maxTeams, v.fee, v.isOpen ? 1 : 0, v.sort, v.code, v.slot, existing.id);
+      max_teams = ?, fee = ?, is_open = ?, sort = ?, code = ?, slot = ?, rules = ? WHERE id = ?
+  `).run(v.title, v.description, v.teamBased ? 1 : 0, v.minMembers, v.maxMembers, v.maxTeams, v.fee, v.isOpen ? 1 : 0, v.sort, v.code, v.slot, v.rules, existing.id);
   audit(req.admin.username, 'event.updated', v.title);
   res.json({ events: listEventsJson() });
 });
@@ -543,6 +551,12 @@ router.put('/settings', (req, res) => {
     patch.upiId = upiId;
   }
   if ('upiName' in b) patch.upiName = clean(b.upiName, 60) || 'Ideathon 26';
+  if ('paymentMode' in b) {
+    if (!['upi', 'cash'].includes(b.paymentMode)) return res.status(400).json({ error: 'Choose how the fee is collected: UPI or cash.' });
+    patch.paymentMode = b.paymentMode;
+  }
+  if ('cashNote' in b) patch.cashNote = clean(b.cashNote, 300);
+  if ('instructions' in b) patch.instructions = textLines(b.instructions, 15, 300);
   if ('eventName' in b) patch.eventName = clean(b.eventName, 60) || "Ideathon '26";
   if ('venue' in b) patch.venue = clean(b.venue, 120);
   if ('notice' in b) patch.notice = clean(b.notice, 240);
@@ -602,7 +616,14 @@ router.get('/overview', async (req, res) => {
     rejected: by.rejected || zero,
     events: listEventsJson(),
     registration: registrationState(settings),
-    upiConfigured: !!settings.upiId,
+    upiConfigured: payMethods(settings).length > 0, // false when nobody can pay yet, which keeps registration closed
+    paymentMode: settings.paymentMode,
+    cash: db.prepare(`
+      SELECT COALESCE(SUM(CASE WHEN status = 'pending' THEN amount END), 0) AS toCollect,
+             COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 END), 0) AS waiting,
+             COALESCE(SUM(CASE WHEN status = 'approved' THEN amount END), 0) AS collected
+      FROM registrations WHERE pay_method = 'cash'
+    `).get(),
     encryption: encryptionOn,
     scanner: { configured: scannerConfigured, healthy: await scannerHealthy(), required: scanRequired },
     roster: { count: studentCount(), required: settings.rosterRequired, emailVerification: settings.emailVerification, mailConfigured },

@@ -232,7 +232,7 @@ check "section typed loosely"   '"status":"pending"'         "$(reg "$(team 5 Se
 check "section stored"          '"roll":"RW1","branch":"CSE","phone":"9876543210","section":"B"' "$(admin GET '/registrations?q=RW1')"
 check "filter by section"       '"teamName":"Sectioned"'     "$(admin GET '/registrations?section=b')"
 check "filter leaves others out" 'no'                        "$(admin GET '/registrations?section=H' | grep -q Sectioned && echo yes || echo no)"
-check "export has a section column" '"Branch","Section","Phone"' "$(admin GET '/export?format=csv&layout=participants&q=Sectioned' | head -1)"
+check "export has a section column" '"Department","Section","Phone"' "$(admin GET '/export?format=csv&layout=participants&q=Sectioned' | head -1)"
 check "export shows the section" '"RW1","CSE","B"'           "$(admin GET '/export?format=csv&layout=participants&q=Sectioned')"
 check "team export shows the section" 'Sec B'                "$(admin GET '/export?format=csv&layout=teams&q=Sectioned')"
 check "sections go up to P"     '"N","O","P"]'               "$(curl -s $B/api/public)"
@@ -326,6 +326,55 @@ check "team export keeps the whole team" '5'                 "$(admin GET '/expo
 check "event and half together" 'no'                         "$(admin GET '/registrations?event=1&half=second' | grep -q '"teamName"' && echo yes || echo no)"
 check "team export has a half column" '"Reg ID","Event","Half","Team","Members"' "$(admin GET '/export?format=csv&layout=teams&half=first' | head -1)"
 
+# ---- instructions and event rules ----
+check "events carry their rules" '"rules":["Present innovative research' "$(curl -s $B/api/public)"
+check "instructions are public"  '"instructions":["Open to 1st year'    "$(curl -s $B/api/public)"
+evrules() { # event id, rules text: prints the event's body with new rules, for PUT
+  admin GET /events > "$DATA_DIR/ev.json"
+  node -e "const e=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).events.find((x)=>x.id==process.argv[2]);e.rules=process.argv[3];process.stdout.write(JSON.stringify(e))" "$DATA_DIR/ev.json" "$1" "$2"
+}
+check "edit an event's rules"    '"rules":["Bring your own laptop","Two hours"]' "$(admin PUT /events/4 "$(evrules 4 $'Bring your own laptop\n\n- Two hours\n')")"
+check "students see the new rules" '"rules":["Bring your own laptop","Two hours"]' "$(curl -s $B/api/public)"
+check "edit the instructions"    '"instructions":["First years only","Carry your ID card"]' "$(admin PUT /settings '{"instructions":"First years only\n\n* Carry your ID card\n"}')"
+
+# ---- paying in cash ----
+cashbody() { # eventId, teamName, rollPrefix, count: a registration that pays in cash
+  setjson "$(team "$1" "$2" "$3" 000000000000 "$4")" payMethod cash utr "" screenshot ""; cat "$DATA_DIR/body.json"
+}
+check "upi only to start with"   '"paymentMethods":["upi"]'  "$(curl -s $B/api/public)"
+check "cash refused in UPI mode" 'Cash payment is not available' "$(reg "$(cashbody 4 x CA 1)")"
+check "bad payment mode"         'Choose how the fee is collected' "$(admin PUT /settings '{"paymentMode":"cheque"}')"
+check "payment mode: cash"       '"paymentMode":"cash"'      "$(admin PUT /settings '{"paymentMode":"cash","cashNote":"Pay at the Chemistry staff room."}')"
+check "no mixed mode"            'UPI or cash'               "$(admin PUT /settings '{"paymentMode":"both"}')"
+check "public offers cash only"  '"paymentMethods":["cash"]' "$(curl -s $B/api/public)"
+check "public shows where to pay" '"cashNote":"Pay at the Chemistry staff room."' "$(curl -s $B/api/public)"
+CASH1=$(reg "$(cashbody 4 x CA 1)")
+check "cash registration"        '"payMethod":"cash"'        "$CASH1"
+check "cash starts as pending"   '"status":"pending"'        "$CASH1"
+CASHCODE=$(echo "$CASH1" | sed 's/.*"code":"\([^"]*\)".*/\1/')
+check "cash retry returns the same one" "\"code\":\"$CASHCODE\"" "$(post /api/register "$(cashbody 4 x CA 1)")"
+check "cash still needs a captcha" 'security check has expired' "$(post /api/register "$(cashbody 4 x CB 1)")"
+check "filter by cash"           "\"code\":\"$CASHCODE\""      "$(admin GET '/registrations?pay=cash&q=RCA1')"
+check "cash filter leaves UPI out" 'no'                      "$(admin GET '/registrations?pay=cash' | grep -q '"payMethod":"upi"' && echo yes || echo no)"
+check "status shows cash"        '"payMethod":"cash"'        "$(post /api/status "{\"code\":\"$CASHCODE\",\"phone\":\"9876543210\"}")"
+check "cash email says where to pay" 'yes'                   "$(sleep 1; grep -q 'to pay in cash: Rs. 50. Pay at the Chemistry staff room.' "$MAILS" && echo yes || echo no)"
+check "export has a payment column" '"Payment","Transaction ID"' "$(admin GET '/export?format=csv&layout=participants&pay=cash' | head -1)"
+check "export says cash"         '"50","Cash",""'            "$(admin GET '/export?format=csv&layout=participants&pay=cash&q=RCA1')"
+check "team export says UPI"     '"UPI","111111111111"'      "$(admin GET '/export?format=csv&layout=teams&q=RA1&event=1')"
+cashsum() { admin GET /overview | sed 's/.*"cash":{\([^}]*\)}.*/\1/'; } # toCollect, waiting, collected
+BEFORE=$(cashsum)
+check "overview counts cash"     '"toCollect":'              "$BEFORE"
+CASHID=$(admin GET '/registrations?pay=cash&q=RCA1' | sed 's/.*\[{"id":\([0-9]*\).*/\1/')
+check "mark cash received"       '"ok":true'                 "$(admin POST /registrations/$CASHID/decision '{"status":"approved"}')"
+check "cash moves to collected"  'yes'                       "$(node -e "const a=JSON.parse('{'+process.argv[1]+'}'),b=JSON.parse('{'+process.argv[2]+'}');console.log(b.collected-a.collected===50&&a.toCollect-b.toCollect===50&&a.waiting-b.waiting===1?'yes':'no')" "$BEFORE" "$(cashsum)")"
+check "received email for cash"  'yes'                       "$(sleep 1; grep -q 'Your payment is received' "$MAILS" && echo yes || echo no)"
+check "upi refused in cash mode" 'UPI payment is not available' "$(setjson "$(team 4 x CE 858585858585 1)" payMethod upi; reg "$(cat "$DATA_DIR/body.json")")"
+check "cash is the default in cash mode" '"payMethod":"cash"' "$(reg "$(team 4 x CF 868686868686 1)")"
+check "cash mode needs no UPI ID" '"state":"open"'           "$(admin PUT /settings '{"upiId":""}' > /dev/null; curl -s $B/api/public)"
+check "upi mode needs a UPI ID"  '"state":"closed"'          "$(admin PUT /settings '{"paymentMode":"upi"}' > /dev/null; curl -s $B/api/public)"
+check "back to UPI"              '"paymentMethods":["upi"]'  "$(admin PUT /settings '{"upiId":"ideathon@upi"}' > /dev/null; curl -s $B/api/public)"
+check "hand added team counts as cash" '"payMethod":"cash"'  "$(admin GET '/registrations?q=Manual')"
+
 # ---- organiser accounts ----
 check "weak organiser password" 'at least 12 characters'   "$(admin POST /organisers '{"username":"priya","password":"short"}')"
 check "bad organiser username" 'Usernames are 3 to 30'     "$(admin POST /organisers '{"username":"P R","password":"a-long-enough-password"}')"
@@ -361,7 +410,7 @@ check "capacity full"          'is full'                   "$(reg "$(team $DEBAT
 check "close registrations"    '"state":"closed"'          "$(admin PUT /settings '{"regMode":"closed"}')"
 check "closed blocks register" 'Registrations are closed'  "$(reg "$(team 3 Late Z 999999999999 5)")"
 check "schedule future"        '"state":"upcoming"'        "$(admin PUT /settings '{"regMode":"scheduled","opensAt":"2099-01-01T00:00:00Z","closesAt":""}')"
-check "overview"               '"approved":{"teams":3'     "$(admin GET /overview | sed 's/"status":"approved",//')"
+check "overview"               '"approved":{"teams":4'     "$(admin GET /overview | sed 's/"status":"approved",//')"
 check "audit"                  'registration.approved'     "$(admin GET /audit)"
 check "delete"                 '"ok":true'                 "$(admin DELETE /registrations/3 '{}')"
 check "logout"                 '"ok":true'                 "$(admin POST /logout '{}')"
