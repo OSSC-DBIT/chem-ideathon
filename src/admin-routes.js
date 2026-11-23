@@ -200,7 +200,7 @@ router.post('/registrations/bulk-approve', (req, res) => {
   res.json({ approved });
 });
 
-// Clears out fake or unpaid entries in one go, which frees the ERP IDs they were holding.
+// Clears out fake or unpaid entries in one go, which frees the roll numbers they were holding.
 router.post('/registrations/bulk-reject', (req, res) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids.slice(0, 1000).map((id) => int(id, 1, 1e9, 0)).filter(Boolean) : [];
   const reason = clean(req.body?.reason, 200);
@@ -432,7 +432,7 @@ router.post('/students/import', express.json({ limit: Math.ceil(MAX_STATEMENT_BY
   }
   const { students, skipped, problems } = readRoster(rows);
   if (students.size === 0) {
-    return res.status(400).json({ error: 'No students were found. The file needs a "ERP ID" column and a "Name" column.', problems });
+    return res.status(400).json({ error: 'No students were found. The file needs a "Roll Number" column and a "Name" column.', problems });
   }
   const total = importStudents(students, mode);
   audit(req.admin.username, 'students.imported', `${students.size} students (${mode}), ${skipped} rows skipped`);
@@ -442,7 +442,7 @@ router.post('/students/import', express.json({ limit: Math.ceil(MAX_STATEMENT_BY
 router.delete('/students/:roll', (req, res) => {
   const roll = normaliseRoll(req.params.roll);
   const result = db.prepare('DELETE FROM students WHERE roll = ?').run(roll);
-  if (!result.changes) return res.status(404).json({ error: 'That ERP ID is not on the list.' });
+  if (!result.changes) return res.status(404).json({ error: 'That roll number is not on the list.' });
   if (studentCount() === 0) saveSettings({ rosterRequired: false });
   audit(req.admin.username, 'students.removed', roll);
   res.json(rosterSummary());

@@ -10,7 +10,7 @@ promises; it is documented for people working on the code.
 - Errors look like this. `fields` maps an input id on the page to the message for that input.
 
 ```json
-{ "error": "Some details need fixing. Check the highlighted fields.", "fields": { "m0-roll": "Enter a valid ERP ID." } }
+{ "error": "Some details need fixing. Check the highlighted fields.", "fields": { "m0-roll": "Enter a valid roll number." } }
 ```
 
 | Status | Meaning |
@@ -19,7 +19,7 @@ promises; it is documented for people working on the code.
 | 401 | Not signed in, or the session ended |
 | 403 | Not allowed: registrations closed, wrong origin, bad CSRF token, or owner only |
 | 404 | No such thing |
-| 409 | A clash with existing data: ERP ID, team name, transaction ID, or event full |
+| 409 | A clash with existing data: roll number, team name, transaction ID, or event full |
 | 413 | Upload too large |
 | 415 | Not JSON |
 | 422 | Upload blocked by the virus scanner |
@@ -56,9 +56,9 @@ Checks a team before payment. No captcha needed.
 ```
 
 - `200 { "ok": true, "students": [...] }` when nothing clashes.
-- `409` with `fields` for a taken team name, an ERP ID already registered, an ERP ID not on
+- `409` with `fields` for a taken team name, a roll number already registered, a roll number not on
   the student list, or a full event.
-- `students` is present when the student list is on: one entry per ERP ID, `null` for unknown
+- `students` is present when the student list is on: one entry per roll number, `null` for unknown
   ones, otherwise `{ "name": "As** Ra*", "branch": "CSE", "section": "A" }` (`section` is empty when the list has none). The first entry may carry a masked `email`.
 
 ### `POST /api/verify/send`
@@ -102,11 +102,11 @@ registration as `verifyToken`. Five wrong codes cancel the code.
 - With the student list on, `name`, `branch` and the leader's `email` are ignored and taken from the list.
 - `section` must be one of the sections in `/api/public`. When `allowOtherSection` is on (it is in
   `/api/public` too), any typed value of 1 to 20 letters, digits, spaces and `& / -` is accepted as
-  well. If the student list has a section for that ERP ID, the list's value is used instead.
+  well. If the student list has a section for that roll number, the list's value is used instead.
 - Send `verifyToken` when email verification is on, otherwise `captchaId` and `captchaAnswer`.
 - `payMethod` is `"upi"` or `"cash"` and must be the one in `paymentMethods`; left out, that one
   is used. A cash registration sends no `utr` and no `screenshot`, and is recognised on a resubmit by the
-  same event, leader ERP ID, leader phone and team size.
+  same event, leader roll number, leader phone and team size.
 - `201` with `{ "code", "eventTitle", "teamName", "teamBased", "memberCount", "amount", "status", "payMethod" }`.
   `code` is the registration ID: `IDT26-`, the event's code, and a number that runs per event (`IDT26-PP001`).
 - `200` with the same shape when the identical registration was already accepted (safe retry).
@@ -150,7 +150,7 @@ the `X-CSRF-Token` header with the value returned at sign in.
 
 For both `POST /registrations` and `PUT /registrations/:id`: a team size outside the event's range, or a
 full event, answers `409 { needsOverride: true }`; send the same body again with `override: true` to
-accept it. An ERP ID that is already in another team is always refused.
+accept it. A roll number that is already in another team is always refused.
 
 ### Bank statement
 
@@ -174,7 +174,7 @@ statement `line`. Nothing is approved by this call.
 | `POST /students/import` | `{ kind, content, mode: "replace" \| "merge" }`; returns `imported`, `skipped`, `problems` |
 | `POST /students` | Adds one student: `{ roll, name, branch, phone, email }` |
 | `PUT /students/:roll` | Edits one student. Also updates the name and branch in their registrations; returns `registrationsUpdated`. |
-| `POST /students/lookup` | `{ rolls: [...] }` returns full details for each ERP ID (or `null`), for the team editor |
+| `POST /students/lookup` | `{ rolls: [...] }` returns full details for each roll number (or `null`), for the team editor |
 | `DELETE /students/:roll` | Removes one student |
 | `DELETE /students` | Clears the list and switches the list check off |
 | `POST /mail/check` | Signs in to the mail server, sends nothing |

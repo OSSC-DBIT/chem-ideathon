@@ -47,7 +47,7 @@ Warnings that can appear at the top:
 
 ## Registrations
 
-- **Search** matches registration ID, team name, any member's name or ERP ID, phone, email and
+- **Search** matches registration ID, team name, any member's name or roll number, phone, email and
   transaction ID. Filter by event, **half**, **department** (the student's branch), **section**, status and
   **payment** (UPI or cash). The department and section filters show every team that has at least one
   member from that department or section.
@@ -56,10 +56,10 @@ Warnings that can appear at the top:
 - A registration that pays in **cash** shows a Cash badge instead of a transaction ID and has no screenshot.
   Open it once the team has paid and press **Mark cash received**. Until then it stays pending. To clear
   out teams that never paid, filter Payment = Cash and Status = Pending, then reject them with a reason;
-  that frees their slots and ERP IDs.
+  that frees their slots and roll numbers.
 - **Approve payment** confirms the team. **Reject** needs a reason; the team sees it in their status
   and by email. **Move back to pending** undoes an approval.
-- A rejected registration cannot be reopened. Rejecting frees the team's slot, ERP IDs and
+- A rejected registration cannot be reopened. Rejecting frees the team's slot, roll numbers and
   transaction ID, so they can register again.
 - **Delete** removes the registration and its screenshot for good.
 
@@ -70,7 +70,7 @@ Open a pending or approved registration and press **Edit team**.
 | You want to | Do this |
 | --- | --- |
 | Remove a member | **Remove** on that member's card |
-| Add a member | **Add a member**, then type the ERP ID. Name, branch, section and phone fill in from the student list. |
+| Add a member | **Add a member**, then type the roll number. Name, branch, section and phone fill in from the student list. |
 | Fix a section | Type it in the Section box of that member. |
 | Change the leader | **Make leader** on the member who should lead. They move to the top. The leader needs a phone number. |
 | Fix a phone number, the team name, the leader's email or the transaction ID | Change the field |
@@ -83,7 +83,7 @@ What the editor checks:
 
 - A student who is already in another team cannot be added. The message names the team, so you can
   remove them there first.
-- With the student list on, an ERP ID that is not on the list is refused. Add the student first.
+- With the student list on, a roll number that is not on the list is refused. Add the student first.
 - A team size outside the event's range, or an event that is already full, shows a **Save anyway?**
   question instead of blocking you. You decide.
 - The amount follows the team size. If it changes, you are told the old and new amount so you can
@@ -97,7 +97,7 @@ A **rejected** registration cannot be edited; add the team by hand instead.
 a late entry you have agreed to, or redoing a rejected registration.
 
 1. Choose the event and type the team name.
-2. Type the leader's ERP ID and phone, then add the other members.
+2. Type the leader's roll number and phone, then add the other members.
 3. Enter the UPI transaction ID if there is one, or leave it empty and write how they paid in the Note.
 4. Choose **Approved** if you have the money, or **Pending** to verify later.
 
@@ -189,7 +189,7 @@ One student per row, the first row being the column headings. Excel (.xlsx) or C
 
 | Column | Needed | Headings that are recognised | Content |
 | --- | --- | --- | --- |
-| ERP ID | Yes | ERP ID, Roll No, USN, Reg No, Registration number, Admission No, Student ID | 3 to 20 letters and digits, also `/` and `-`. Capitals and spaces do not matter. |
+| Roll Number | Yes | Roll Number, Roll No, USN, Reg No, Registration number, Admission No, Student ID | 3 to 20 letters and digits, also `/` and `-`. Capitals and spaces do not matter. |
 | Name | Yes | Name, Student Name, Full Name | Full name |
 | Branch | No | Branch, Department, Dept, Course, Program, Stream | Any text |
 | Section | No | Section, Sec, Division | The class section. "A", "Sec A" and "section a" are all read as A. When it is missing, the student picks it in the form. |
@@ -197,10 +197,10 @@ One student per row, the first row being the column headings. Excel (.xlsx) or C
 | Email | No, but needed for email verification | Email, E-mail, Email ID | The address the code is sent to |
 
 - Columns can be in any order. Extra columns are ignored. A title row above the headings is fine.
-- A row is skipped if the ERP ID is invalid, the name is empty, or the ERP ID already
+- A row is skipped if the roll number is invalid, the name is empty, or the roll number already
   appeared. The result lists the skipped rows and why.
 - **Replace the whole list** swaps the list. **Add to the list and update existing** keeps what is
-  there and updates matching ERP IDs. Neither changes existing registrations.
+  there and updates matching roll numbers. Neither changes existing registrations.
 
 ### Correcting one student
 
@@ -211,13 +211,13 @@ After a bulk upload you do not need to upload the file again to fix one row.
   email also becomes the contact email of a team that student leads.
 - **Add one student** adds a single student who was missing from the file.
 - **Remove** takes a student off the list. It does not touch a registration they are already in.
-- The ERP ID itself cannot be changed. Remove the student and add them again with the right one.
+- The roll number itself cannot be changed. Remove the student and add them again with the right one.
 
 ### The three switches
 
 | Switch | Effect |
 | --- | --- |
-| Only students on this list can register | ERP IDs not on the list are refused. Names and branch come from the list and cannot be edited by students. |
+| Only students on this list can register | Roll Numbers not on the list are refused. Names and branch come from the list and cannot be edited by students. |
 | The team leader's phone must match the phone on this list | For lists with phone numbers. A leader whose number changed will need you to update the list. |
 | The team leader must verify their email with a code | A code is emailed before payment. Needs email to be set up. |
 
@@ -259,7 +259,7 @@ the account that did it and the time. Use it when you need to know who approved 
 
 | Situation | What to do |
 | --- | --- |
-| A student says someone else registered with their ERP ID | Search the ERP ID under Registrations. Reject or delete that registration. The student can then register. |
+| A student says someone else registered with their roll number | Search the roll number under Registrations. Reject or delete that registration. The student can then register. |
 | A team typed the wrong transaction ID | Reject with that reason. They register again with the right ID. |
 | A team wants to change a member | Open the registration, **Edit team**, remove the old member and add the new one. |
 | A team paid in cash | **Add a registration by hand**, leave the transaction ID empty, and write a Note. |

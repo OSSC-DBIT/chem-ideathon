@@ -12,7 +12,7 @@ const PAID_BY = (r) => (r.payMethod === 'cash' ? 'Cash' : 'UPI');
  */
 export function buildTable(regs, layout, only = {}) {
   if (layout === 'participants') {
-    const columns = ['Reg ID', 'Event', 'Half', 'Team', 'Role', 'Name', 'ERP ID', 'Department', 'Section', 'Phone', 'Status', 'Team amount (Rs)', 'Payment', 'Transaction ID'];
+    const columns = ['Reg ID', 'Event', 'Half', 'Team', 'Role', 'Name', 'Roll Number', 'Department', 'Section', 'Phone', 'Status', 'Team amount (Rs)', 'Payment', 'Transaction ID'];
     const wantBranch = (only.branch || '').toLowerCase();
     const rows = [];
     for (const r of regs) {
@@ -26,7 +26,7 @@ export function buildTable(regs, layout, only = {}) {
   }
 
   const columns = [
-    'Reg ID', 'Event', 'Half', 'Team', 'Members', 'Leader name', 'Leader ERP ID', 'Leader phone', 'Leader email',
+    'Reg ID', 'Event', 'Half', 'Team', 'Members', 'Leader name', 'Leader Roll Number', 'Leader phone', 'Leader email',
     'All members', 'Amount (Rs)', 'Payment', 'Transaction ID', 'Status', 'Reject reason', 'Registered at', 'Decided at', 'Decided by',
     'Added by', 'Note',
   ];

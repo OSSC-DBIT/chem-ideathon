@@ -18,7 +18,7 @@ place where people can learn, make mistakes and ask questions without fear.
   appearance, disability, or any other personal trait.
 - Sexual language or imagery, and unwelcome advances.
 - Sharing someone's private information without their permission. This project handles real student
-  data, so this includes posting names, ERP IDs, phone numbers, emails or payment screenshots
+  data, so this includes posting names, roll numbers, phone numbers, emails or payment screenshots
   in issues, pull requests, screenshots or chat.
 - Deliberately disrupting the event or the site: fake registrations, spam, or testing attacks against
   the live site without permission from the maintainers.

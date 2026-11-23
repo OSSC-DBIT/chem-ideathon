@@ -92,7 +92,7 @@ A whole campus can share one address, so these are generous for students and str
 | `VERIFY_SEND_RATE_LIMIT` | `300` per 10 minutes | Asking for a verification email |
 
 Fixed limits, not configurable: 8 failed sign ins per 15 minutes, 3000 captcha images per 10 minutes,
-9000 ERP ID checks per 10 minutes, 1500 code checks per 10 minutes, 600 status checks per 10 minutes.
+9000 roll number checks per 10 minutes, 1500 code checks per 10 minutes, 600 status checks per 10 minutes.
 
 These numbers look large because of how a campus works: every student on the college Wi-Fi reaches
 the site from the same public address, so a per address limit is really a limit on the whole college

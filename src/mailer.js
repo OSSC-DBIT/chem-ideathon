@@ -179,7 +179,7 @@ export const messages = {
     const lines = [
       'Use this code to verify your email for the Ideathon \'26 registration:',
       `It works for ${minutes} minutes and can be used once.`,
-      'If you did not ask for this, someone may have typed your ERP ID by mistake. You can ignore this email; nothing happens without the code.',
+      'If you did not ask for this, someone may have typed your roll number by mistake. You can ignore this email; nothing happens without the code.',
     ];
     return {
       to,

@@ -12,8 +12,8 @@ behind a Cloudflare tunnel.
 
 How it works, end to end:
 
-1. Organisers upload the 1st year **student list**. Only ERP IDs on it can register.
-2. A **team leader** picks one event, adds the team by ERP ID (names fill in from the list),
+1. Organisers upload the 1st year **student list**. Only roll numbers on it can register.
+2. A **team leader** picks one event, adds the team by roll number (names fill in from the list),
    and proves who they are with a **code emailed** to the address on the list.
 3. The leader pays by UPI and uploads the **transaction ID and a screenshot**.
 4. Organisers **verify the payment** against the bank statement and approve or reject.
@@ -49,7 +49,7 @@ src/db.js                 Opens the encrypted SQLite database (converting a plai
                           settings store, addColumn() migrations, first run event seed
 src/vault.js              Keys derived from DATA_KEY; sealFile() and openFile() for files on disk
 src/security.js           Owner and organiser accounts, sessions, CSRF, security headers, rate limiter
-src/rules.js              Input rules shared by public and admin code: ERP ID, phone, email, transaction ID, section
+src/rules.js              Input rules shared by public and admin code: roll number, phone, email, transaction ID, section
 src/participation.js      Halves and who may join what (findClash), event codes, registration IDs (nextRegistrationId)
 
 src/public-routes.js      /api/public, /qr, /captcha, /precheck, /verify/send, /verify/check, /register, /status
@@ -106,7 +106,7 @@ Enforcement
 2. **One event in each half** by default (`participation` is `perHalf`; the others are `one` and `any`).
    Every event has a `slot` (`first`, `second`, or empty meaning the whole day). All clash checks go
    through `findClash()` in `src/participation.js`, for students and organisers alike, and it ignores
-   rejected registrations, which is how a rejection frees the slot, the ERP IDs, the team name and the
+   rejected registrations, which is how a rejection frees the slot, the roll numbers, the team name and the
    transaction ID.
 3. **Order of checks in `/api/register`**: cheap validation, then a reused transaction ID (identical
    resubmission returns the original, anything else is refused), then clash checks, then the proof of
@@ -123,7 +123,7 @@ Data protection
    with `openFile()`. The database is opened only in `src/db.js`.
 7. **Uploads are never stored as received.** Screenshots go through `scanOrThrow` then `sanitiseImage`
    (a re-encoded JPEG). Statements and student lists are scanned and parsed in memory only.
-8. **The public ERP ID lookup returns masked names and emails** (`maskName`, `maskEmail`). Full
+8. **The public roll number lookup returns masked names and emails** (`maskName`, `maskEmail`). Full
    values go to signed in admins only. With the student list on, the server ignores names, branch and
    the leader's email sent by the browser and uses the list.
 9. **No real personal data** in code, tests, fixtures, commits, issues or screenshots.
@@ -215,7 +215,7 @@ Keeping things in step
 - `registrationState()` reports closed when there is no way to pay (UPI mode with no UPI ID). Tests set `UPI_ID`.
 - Registration IDs come from `nextRegistrationId()` and must be taken inside the transaction that
   inserts the registration, so a failed insert does not use up a number. Numbers are never reused.
-- The label is "ERP ID" everywhere a person reads it; in the code and the API the field is still `roll`.
+- The label is "Roll Number" everywhere a person reads it; in the code and the API the field is still `roll`.
 - Every student on campus Wi-Fi shares one public address, so a per address limit is a limit on the
   whole college. Do not lower the rate limits to "sensible" per person numbers.
 - Sharp renders SVG without fonts in the container, which is why the captcha draws digits as strokes.

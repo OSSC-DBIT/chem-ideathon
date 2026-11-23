@@ -9,16 +9,16 @@ Built and maintained by [OSSC (OpenSource Students Club), DBIT](https://webuildn
 
 **For students (1st years only)**
 
-- Pick an event, add the team (leader plus members, each with name, ERP ID, branch and section), pay by UPI.
+- Pick an event, add the team (leader plus members, each with name, roll number, branch and section), pay by UPI.
 - The payment step shows a QR code with the exact amount (Rs. 50 x team size), then asks for the
   12 digit transaction ID and a payment screenshot.
 - Every registration gets an ID such as `IDT26-PP001` (the event's code, then a running number) and starts as "pending".
 - A status checker (registration ID plus the leader's phone number) shows pending, confirmed or rejected with the reason.
 - Privacy policy at `/privacy`, with a required tick box.
-- "Already registered" is shown as soon as an ERP ID or team name is typed, and checked again before
+- "Already registered" is shown as soon as a roll number or team name is typed, and checked again before
   the payment step, so nobody pays for a team that cannot register.
 - A self hosted image captcha (five digits). No outside service is involved.
-- With the student list on: names fill in from the ERP ID, and the team leader confirms their
+- With the student list on: names fill in from the roll number, and the team leader confirms their
   email with a code before paying.
 
 **For organisers (`/admin`)**
@@ -53,7 +53,7 @@ Built and maintained by [OSSC (OpenSource Students Club), DBIT](https://webuildn
   pending or approved registration cannot be entered in another event of the same half. (Organisers can change
   this to one event only, or no limit, under Settings.)
 - A transaction ID can be used only once. Team names are unique per event.
-- A rejected registration frees its slot, ERP IDs and transaction ID so the team can register again.
+- A rejected registration frees its slot, roll numbers and transaction ID so the team can register again.
 
 ## Run with Docker
 
@@ -147,16 +147,16 @@ To run without virus scanning (for example on a small server), remove the `clama
 ## Student list, and proving who is registering
 
 Under **Student list** in the admin panel, upload the 1st year list as Excel or CSV with the columns
-**ERP ID**, **Name**, **Branch**, and optionally **Phone** and **Email**. Headings are matched loosely
+**Roll Number**, **Name**, **Branch**, and optionally **Phone** and **Email**. Headings are matched loosely
 ("USN", "Student Name", "Department", "Mobile No" and "Email ID" all work), and a title row above the headings is fine.
 
 | Switch | What it does |
 | --- | --- |
-| Only students on this list can register | The form asks for ERP IDs; name and branch are filled in from the list and cannot be edited. Unknown ERP IDs are refused. |
-| The team leader must verify their email with a code | A 6 digit code is emailed before payment. With the list on, the code goes to the email the college has for the leader's ERP ID, so a person cannot register in someone else's name. |
+| Only students on this list can register | The form asks for roll numbers; name and branch are filled in from the list and cannot be edited. Unknown roll numbers are refused. |
+| The team leader must verify their email with a code | A 6 digit code is emailed before payment. With the list on, the code goes to the email the college has for the leader's roll number, so a person cannot register in someone else's name. |
 | The leader's phone must match the list | A lighter check, for lists that have phone numbers. |
 
-Only the team leader is verified. Members are added by ERP ID without their own code, so a verified
+Only the team leader is verified. Members are added by roll number without their own code, so a verified
 leader is the accountable person for the team.
 
 ### Email (SMTP)
@@ -209,7 +209,7 @@ The full picture, including what is not protected, is in [docs/security.md](docs
 - Strict Content Security Policy with no inline scripts or styles and no third party resources (fonts are self hosted).
 - Screenshots are resized in the browser, checked by file signature on the server, stored under random
   names outside the web root, and served only to signed in admins.
-- The public ERP ID lookup returns masked names and emails ("As** Ra*", "as***@example.com"), so it cannot be used
+- The public roll number lookup returns masked names and emails ("As** Ra*", "as***@example.com"), so it cannot be used
   to download the student list. Full details are visible only in the admin panel.
 - A transaction ID that is already registered is refused before the captcha, virus scan or image processing run.
 - All SQL is parameterised. Spreadsheet exports are protected against formula injection.

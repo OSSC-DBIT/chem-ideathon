@@ -62,9 +62,9 @@ function readTeam(body, event, settings, selfId) {
     const listed = ROLL_RE.test(m.roll) ? getStudent(m.roll) : null;
 
     if (!ROLL_RE.test(m.roll)) {
-      errors[`m${i}-roll`] = 'Enter a valid ERP ID.';
+      errors[`m${i}-roll`] = 'Enter a valid roll number.';
     } else if (seen.has(m.roll)) {
-      errors[`m${i}-roll`] = 'This ERP ID is repeated in the team.';
+      errors[`m${i}-roll`] = 'This roll number is repeated in the team.';
     } else if (settings.rosterRequired && !listed) {
       errors[`m${i}-roll`] = 'Not on the student list. Add the student under Student list first.';
     } else {
@@ -230,7 +230,7 @@ function readStudent(body) {
 
 const summary = () => ({ count: studentCount() });
 
-/** Who the given ERP IDs belong to, with full details. For the team editor. */
+/** Who the given roll numbers belong to, with full details. For the team editor. */
 router.post('/students/lookup', (req, res) => {
   const rolls = Array.isArray(req.body?.rolls) ? req.body.rolls.slice(0, 60) : [];
   const settings = getSettings();
@@ -246,8 +246,8 @@ router.post('/students/lookup', (req, res) => {
 router.post('/students', (req, res) => {
   const roll = cleanRoll(req.body?.roll);
   const { errors, student } = readStudent(req.body);
-  if (!ROLL_RE.test(roll) || !/\d/.test(roll)) errors.roll = 'Enter a valid ERP ID (3 to 20 letters and digits).';
-  else if (getStudent(roll)) errors.roll = 'This ERP ID is already on the list. Edit that student instead.';
+  if (!ROLL_RE.test(roll) || !/\d/.test(roll)) errors.roll = 'Enter a valid roll number (3 to 20 letters and digits).';
+  else if (getStudent(roll)) errors.roll = 'This roll number is already on the list. Edit that student instead.';
   if (Object.keys(errors).length) return res.status(400).json({ error: Object.values(errors)[0], fields: errors });
   db.prepare('INSERT INTO students (roll, name, branch, phone, email, section) VALUES (?, ?, ?, ?, ?, ?)')
     .run(roll, student.name, student.branch, student.phone, student.email, student.section);
@@ -258,7 +258,7 @@ router.post('/students', (req, res) => {
 router.put('/students/:roll', (req, res) => {
   const roll = cleanRoll(req.params.roll);
   const existing = getStudent(roll);
-  if (!existing) return res.status(404).json({ error: 'That ERP ID is not on the list.' });
+  if (!existing) return res.status(404).json({ error: 'That roll number is not on the list.' });
   const { errors, student } = readStudent(req.body);
   if (Object.keys(errors).length) return res.status(400).json({ error: Object.values(errors)[0], fields: errors });
 

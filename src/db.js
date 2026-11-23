@@ -223,7 +223,7 @@ const DEFAULT_SETTINGS = {
   instructions: [             // shown before a student picks an event
     'Open to 1st year students of Don Bosco Institute of Technology only.',
     'The entry fee is per participant, for each event.',
-    'The team leader registers the whole team. Keep every member\'s ERP ID and section ready.',
+    'The team leader registers the whole team. Keep every member\'s roll number and section ready.',
     'Read the rules of the event before you register for it.',
     'Details cannot be changed after you submit. For a correction, contact the coordinator.',
     'A registration is confirmed only after the organisers have recorded the payment.',
@@ -236,7 +236,7 @@ const DEFAULT_SETTINGS = {
   contactName: 'Prof Chinmayi G',
   contactPhone: '',
   participation: 'perHalf',   // perHalf: one event in each half | one: one event only | any: no limit across events
-  rosterRequired: false,      // only ERP IDs on the uploaded student list may register
+  rosterRequired: false,      // only roll numbers on the uploaded student list may register
   matchLeaderPhone: false,    // the leader's phone must match the phone on the student list
   emailVerification: false,   // the leader must confirm their email with a code before paying
 };

@@ -7,8 +7,8 @@ What the site protects, how, and what it does not protect. To report a problem, 
 
 | Data | Where | Encrypted on disk |
 | --- | --- | --- |
-| Registrations: team name, members' names, ERP IDs, branch, section, leader's phone and email, transaction ID, status | Database | Yes |
-| Student list: ERP ID, name, branch, section, phone, email | Database | Yes |
+| Registrations: team name, members' names, roll numbers, branch, section, leader's phone and email, transaction ID, status | Database | Yes |
+| Student list: roll number, name, branch, section, phone, email | Database | Yes |
 | Organiser accounts: username and password hash | Database | Yes |
 | Settings, events, activity log, admin sessions | Database | Yes |
 | Payment screenshots | Files in `uploads/` | Yes |
@@ -48,14 +48,14 @@ Losing `DATA_KEY` means losing the data. See [Operations](operations.md#the-encr
 
 | Check | Stops |
 | --- | --- |
-| Student list | ERP IDs that are not 1st year students. Names and branch come from the list, never from the form. |
+| Student list | Roll Numbers that are not 1st year students. Names and branch come from the list, never from the form. |
 | Email code to the address on the list | Registering as another student. Only someone who can read that student's inbox gets the code. |
 | One event in each half | The same student in two teams at the same time |
 | Unique transaction ID | One payment used for two registrations |
 | Captcha before a code is sent, or before submit when email verification is off | Scripts flooding the form or other people's inboxes |
 | Admin approval against the bank statement | Fake or unpaid registrations being confirmed |
 
-Only the **team leader** is verified. Members are added by ERP ID without their own code, by
+Only the **team leader** is verified. Members are added by roll number without their own code, by
 design: the verified leader is accountable for the team, and an organiser can reject an entry.
 
 ## Admin panel
@@ -102,7 +102,7 @@ design: the verified leader is accountable for the team, and an organiser can re
 
 ## Privacy by design
 
-- The public ERP ID lookup returns **masked** names and emails (`As** Ra*`, `as***@example.com`),
+- The public roll number lookup returns **masked** names and emails (`As** Ra*`, `as***@example.com`),
   so the form cannot be used to download the student list.
 - Status lookup needs both the registration ID and the leader's phone number.
 - Registration IDs are an event code and a running number (`IDT26-PP001`), so they can be guessed.
@@ -136,13 +136,13 @@ hour and 12 per day per email address, plus a daily cap for the whole site.
 | Risk | Why it is accepted, and what limits it |
 | --- | --- |
 | Root on the server can read everything | Outside what an application can prevent. Keep the server patched and access limited. |
-| Only the team leader is verified | A leader can add another student's ERP ID without asking. It is traceable to a verified leader, and an organiser can reject it. |
-| An ERP ID can be probed for "is this student registered, and for which event" | Needed so teams learn about a clash before paying. Names stay masked. |
+| Only the team leader is verified | A leader can add another student's roll number without asking. It is traceable to a verified leader, and an organiser can reject it. |
+| A roll number can be probed for "is this student registered, and for which event" | Needed so teams learn about a clash before paying. Names stay masked. |
 | The image captcha stops casual scripts, not image recognition tools | Rate limits and the email code are the real barrier. |
 | Blind users cannot solve an image captcha | The form tells them to contact the coordinator. |
 | Exports are plain files | They are needed for attendance sheets. Each export is logged with the account that made it. |
 | Verification codes and captchas are lost on restart | Students ask for a new one. |
-| A student without an email on the list is verified at the email they type | That proves the inbox works, not that they own the ERP ID. The admin panel shows how many students have no email. |
+| A student without an email on the list is verified at the email they type | That proves the inbox works, not that they own the roll number. The admin panel shows how many students have no email. |
 | One owner password in `.env` | Use organiser accounts for people; keep the owner password for setup. |
 | The mail provider sees the leader's email address and the message | Needed to deliver email. The OSSC mail server is on the same machine. |
 

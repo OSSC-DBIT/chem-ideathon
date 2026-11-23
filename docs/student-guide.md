@@ -6,7 +6,7 @@ How to register a team for Ideathon '26. Registration is open to 1st year studen
 
 Have these ready:
 
-- The **ERP ID** and **section** of every team member, exactly as on your ID card.
+- The **Roll Number** and **section** of every team member, exactly as on your ID card.
 - The team leader's **phone number**, and access to the leader's **college email inbox**.
 - A **UPI app** (Google Pay, PhonePe, Paytm or any other) with enough balance for the whole team.
   The fee is per participant, so a team of 5 pays 5 times the fee in one payment.
@@ -37,21 +37,21 @@ first step that still needs something. Tapping an earlier step takes you back; n
 ## Step 2: add your team
 
 1. Type a **team name** (for team events). It must be unique within the event.
-2. Type each member's **ERP ID**. The name and branch fill in by themselves from the college's
+2. Type each member's **Roll Number**. The name and branch fill in by themselves from the college's
    student list. Names are shown partly hidden, like `As** Ra*`, for privacy; check that the visible
    letters match your teammate.
 3. Choose each member's **section** (A to P). If yours is not there, choose **Other (type it)** and
    type it. If the college's list already has it, it is filled in and locked.
 4. Enter the team leader's phone number. Phone numbers of other members are optional.
 
-Messages you may see under an ERP ID:
+Messages you may see under a roll number:
 
 | Message | What it means |
 | --- | --- |
-| This ERP ID is not in the 1st year student list | Typing mistake, or the student is missing from the list. Check the number; if it is right, contact the coordinator. |
+| This roll number is not in the 1st year student list | Typing mistake, or the student is missing from the list. Check the number; if it is right, contact the coordinator. |
 | Read the rules above, then tick this box to continue | Tick the box under the event's rules on step 1. |
 | This student is already registered for ... (1st half) | That student is already in a team for an event in the same half. Pick someone else, or choose an event in the other half. |
-| This is the same ERP ID as the team leader (or member 2, 3 ...) | You typed the same ERP ID twice. Each member needs their own. |
+| This is the same roll number as the team leader (or member 2, 3 ...) | You typed the same roll number twice. Each member needs their own. |
 | Select the section | Pick the member's section from the list, or choose Other and type it. |
 | Type your section | You chose Other but left the box empty. |
 | Use letters and digits only | A typed section can have letters, digits, spaces and the signs & / - (up to 20 characters). |
@@ -123,4 +123,4 @@ leader's phone number.
 | My internet dropped while submitting | Press Submit again. It is safe. |
 | The event filled up while I was typing | Pick another event; the page tells you. |
 | I paid but was rejected | Read the reason. Usually the transaction ID was typed wrong. Register again with the right one, or contact the coordinator. |
-| Someone else used my ERP ID | Tell the coordinator. They can remove that registration so you can register. |
+| Someone else used my roll number | Tell the coordinator. They can remove that registration so you can register. |

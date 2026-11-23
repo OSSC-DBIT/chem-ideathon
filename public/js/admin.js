@@ -105,7 +105,7 @@
     showState(o.registration);
     $('#upi-warning').hidden = o.upiConfigured;
     $('#roster-text').textContent = o.roster.count === 0
-      ? 'No student list has been uploaded yet. Without it, anyone can type any ERP ID and name. Upload the 1st year list to lock registrations to real students.'
+      ? 'No student list has been uploaded yet. Without it, anyone can type any roll number and name. Upload the 1st year list to lock registrations to real students.'
       : `${o.roster.count} students are on the list. Only listed students can register: ${o.roster.required ? 'ON' : 'OFF'}. Email verification: ${o.roster.emailVerification ? 'ON' : o.roster.mailConfigured ? 'OFF' : 'not available (email is not set up)'}.`;
     $('#roster-card').classList.toggle('bg-orange', o.roster.count === 0 || !o.roster.required);
     $('#ro-limit').textContent = o.limits.statementMb;
@@ -327,7 +327,7 @@
               el('dt', {}, 'Screenshot'), el('dd', {}, !r.hasScreenshot ? 'None' : r.scanStatus === 'clean' ? 'Virus scan passed, re-encoded' : 'Not virus scanned (scanner was unavailable), re-encoded')),
             el('div', { className: 'card flat table-card' }, el('div', { className: 'table-scroll' },
               el('table', {},
-                el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Name'), el('th', {}, 'ERP ID'), el('th', {}, 'Branch'), el('th', {}, 'Section'), el('th', {}, 'Phone'))),
+                el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Name'), el('th', {}, 'Roll Number'), el('th', {}, 'Branch'), el('th', {}, 'Section'), el('th', {}, 'Phone'))),
                 el('tbody', {}, ...r.members.map((m, i) => el('tr', {},
                   el('td', {}, String(i + 1)), el('td', {}, m.name, i === 0 ? el('small', {}, 'Leader') : null),
                   el('td', {}, m.roll), el('td', {}, m.branch), el('td', {}, m.section || ''), el('td', {}, m.phone || '')))))))),
@@ -402,7 +402,7 @@
       summary.classList.toggle('warn', outside);
     }
 
-    // Flags an ERP ID that an earlier member of this team already has, as soon as it is typed.
+    // Flags a roll number that an earlier member of this team already has, as soon as it is typed.
     // With an index, returns whether that row is free of the problem.
     let repeatedRows = [];
     function markRepeated(index) {
@@ -415,12 +415,12 @@
         else firstUse.set(roll, i);
       });
       repeatedRows.filter((i) => !found.some(([row]) => row === i)).forEach((i) => setError(`m${i}-roll`, ''));
-      found.forEach(([i, other]) => setError(`m${i}-roll`, `Same ERP ID as ${other === 0 ? 'the leader' : `member ${other + 1}`}.`));
+      found.forEach(([i, other]) => setError(`m${i}-roll`, `Same roll number as ${other === 0 ? 'the leader' : `member ${other + 1}`}.`));
       repeatedRows = found.map(([i]) => i);
       return index === undefined ? found.length === 0 : !repeatedRows.includes(index);
     }
 
-    // Fills in the name, branch and phone from the student list when the ERP ID is on it.
+    // Fills in the name, branch and phone from the student list when the roll number is on it.
     async function lookup(i) {
       const m = members[i];
       if (!m || !m.roll.trim()) return; // the row may have been removed while its field still had focus
@@ -459,7 +459,7 @@
               m.roll = input.value.trim().toUpperCase().replace(/\s/g, '');
               input.value = m.roll;
               m.listed = false;
-              if (markRepeated(i)) lookup(i); // do not fill in details for a repeated ERP ID
+              if (markRepeated(i)) lookup(i); // do not fill in details for a repeated roll number
             });
           }
           return el('div', { className: 'field' }, el('label', { htmlFor: input.id }, label), input, el('p', { className: 'err', dataset: { err: `m${i}-${key}` } }));
@@ -471,7 +471,7 @@
               i > 0 ? el('button', { type: 'button', className: 'btn sm white', onclick: () => { members.unshift(members.splice(i, 1)[0]); clearErrors(); draw(); } }, 'Make leader') : null,
               members.length > 1 ? el('button', { type: 'button', className: 'btn sm red', onclick: () => { members.splice(i, 1); clearErrors(); draw(); } }, 'Remove') : null)),
           el('div', { className: 'ed-fields' },
-            field('roll', 'ERP ID', { maxLength: 20, autocapitalize: 'characters', autocomplete: 'off' }),
+            field('roll', 'Roll Number', { maxLength: 20, autocapitalize: 'characters', autocomplete: 'off' }),
             field('name', 'Name', { maxLength: 60, autocomplete: 'off' }),
             field('branch', 'Branch', { maxLength: 40, autocomplete: 'off' }),
             field('section', 'Section', { maxLength: 20, autocomplete: 'off', autocapitalize: 'characters' }),
@@ -536,7 +536,7 @@
           el('div', { className: 'field' }, el('label', { htmlFor: 'ed-note' }, 'Note ', el('span', { className: 'opt' }, '(optional, organisers only)')), noteInput),
           isNew ? el('div', { className: 'field' }, el('label', { htmlFor: 'ed-status' }, 'Status'), status) : null),
         el('h3', { className: 'ed-title' }, 'Members'),
-        el('p', { className: 'small muted' }, 'The first one is the team leader. Type an ERP ID and the details fill in from the student list.'),
+        el('p', { className: 'small muted' }, 'The first one is the team leader. Type a roll number and the details fill in from the student list.'),
         list,
         el('p', { className: 'err', dataset: { err: 'members' } }),
         el('div', { className: 'btn-row mt' }, addBtn),
@@ -592,7 +592,7 @@
       el('div', { className: 'dlg-head' }, el('h3', {}, isNew ? 'Add a student' : `Edit ${student.roll}`)),
       el('div', { className: 'dlg-body settings-grid' },
         problem,
-        row('roll', isNew ? 'ERP ID' : 'ERP ID (cannot be changed; remove and add again instead)'),
+        row('roll', isNew ? 'Roll Number' : 'Roll Number (cannot be changed; remove and add again instead)'),
         row('name', 'Name'),
         el('div', { className: 'grid2' }, row('branch', 'Branch'), row('section', 'Section')),
         row('phone', 'Phone (optional)'),
@@ -714,7 +714,7 @@
     if (!ids.length) throw new Error('Tick the "Not found" registrations you want to reject.');
     const ok = await confirmBox({
       title: 'Reject these registrations?',
-      message: `${ids.length} registration(s) will be rejected because their transaction ID is not in this statement. Make sure the statement covers the dates they paid. Their ERP IDs become free again, and a rejection cannot be undone.`,
+      message: `${ids.length} registration(s) will be rejected because their transaction ID is not in this statement. Make sure the statement covers the dates they paid. Their roll numbers become free again, and a rejection cannot be undone.`,
       okText: 'Reject', danger: true,
     });
     if (!ok) return;
@@ -857,7 +857,7 @@
     $('#ro-stats').replaceChildren(
       stat('bg-white', 'Students on the list', r.count, `${r.withSection} with a section, ${r.withPhone} with a phone, ${r.withEmail} with an email`),
       stat(r.rosterRequired ? 'bg-green' : 'bg-orange', 'Registration check', r.rosterRequired ? 'ON' : 'OFF',
-        r.rosterRequired ? 'Only listed students can register' : 'Anyone can type any ERP ID'));
+        r.rosterRequired ? 'Only listed students can register' : 'Anyone can type any roll number'));
     $('#ro-required').checked = r.rosterRequired;
     $('#ro-required').disabled = r.count === 0;
     $('#ro-phone').checked = r.matchLeaderPhone;

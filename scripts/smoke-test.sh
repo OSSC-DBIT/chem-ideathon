@@ -59,7 +59,7 @@ check "precheck: leader taken" 'You are already registered for Poster Presentati
 check "precheck: member taken" 'This student is already registered for Poster Presentation' "$(precheck 3 Fresh '"RZ1","RA3"')"
 check "precheck: same event"   '"m1-roll"'                 "$(precheck 1 Fresh '"RZ1","RA2"')"
 check "precheck: repeated roll"  'more than once in your team' "$(precheck 2 Fresh '"RZ1","rz 1"')"
-check "precheck: flags the second one" '"m1-roll":"This ERP ID is repeated' "$(precheck 2 Fresh '"RZ1","RZ2","RZ1"' | sed 's/m2-roll/m1-roll/')"
+check "precheck: flags the second one" '"m1-roll":"This roll number is repeated' "$(precheck 2 Fresh '"RZ1","RZ2","RZ1"' | sed 's/m2-roll/m1-roll/')"
 check "precheck: team name"    'team name is taken'        "$(precheck 1 ALPHA '"RZ1","RZ2"')"
 check "member in two teams"    'A student cannot be in two teams' "$(reg "$(team 1 Second A 232323232323 5)")"
 check "roll repeated in team"  'repeated in your team'     "$(reg "$(team 3 Twin Q 343434343434 5 | sed 's/"roll":"RQ2"/"roll":"RQ1"/')")"
@@ -118,7 +118,7 @@ check "bulk reject needs reason" 'Give a reason'           "$(admin POST /regist
 BEFORE=$(admin GET '/registrations?status=pending' | grep -o '"id":[0-9]*,"code"' | head -1 | grep -o '[0-9]*')
 check "bulk reject fake entry" '"rejected":1'              "$(admin POST /registrations/bulk-reject "{\"ids\":[$BEFORE],\"reason\":\"Not in statement\"}")"
 # ---- student list ----
-ROSTER='ERP ID,Name,Branch,Section,Phone,Email ID\nRT1,Asha Rao,CSE,Sec A,9876500001,Asha.Rao@dbit.example\nRT2,Vikram N,ECE,b,,\nRT3,Divya S,ISE,A,,\nRT4,Rahul K,CSE,C,,\nRT5,Meera P,CSE,A,,\nbad roll!,Nobody,CSE,A,,\nRT2,Duplicate,CSE,A,,'
+ROSTER='Roll Number,Name,Branch,Section,Phone,Email ID\nRT1,Asha Rao,CSE,Sec A,9876500001,Asha.Rao@dbit.example\nRT2,Vikram N,ECE,b,,\nRT3,Divya S,ISE,A,,\nRT4,Rahul K,CSE,C,,\nRT5,Meera P,CSE,A,,\nbad roll!,Nobody,CSE,A,,\nRT2,Duplicate,CSE,A,,'
 check "roster needs a list"    'Upload the student list first' "$(admin PUT /settings '{"rosterRequired":true}')"
 check "roster import"          '"imported":5,"skipped":2'  "$(admin POST /students/import "{\"kind\":\"text\",\"mode\":\"replace\",\"content\":\"$ROSTER\"}")"
 check "roster bad file"        'No students were found'    "$(admin POST /students/import '{"kind":"text","content":"hello\nworld"}')"
@@ -139,7 +139,7 @@ check "remove student"         '"count":4'                 "$(admin DELETE /stud
 check "clear list turns it off" '"count":0,"withPhone":0,"withEmail":0,"withSection":0,"rosterRequired":false' "$(admin DELETE /students '{}')"
 # ---- email verification ----
 MAILS="$DATA_DIR/mails.jsonl"
-VROSTER='ERP ID,Name,Branch,Section,Email\nRV1,Leela Nair,CSE,A,leela.nair@dbit.example\nRV2,Arjun M,ECE,B,\nRV3,Sana K,ISE,A,\nRV4,Tarun P,CSE,C,\nRV5,Nisha R,CSE,A,'
+VROSTER='Roll Number,Name,Branch,Section,Email\nRV1,Leela Nair,CSE,A,leela.nair@dbit.example\nRV2,Arjun M,ECE,B,\nRV3,Sana K,ISE,A,\nRV4,Tarun P,CSE,C,\nRV5,Nisha R,CSE,A,'
 admin POST /students/import "{\"kind\":\"text\",\"mode\":\"replace\",\"content\":\"$VROSTER\"}" > /dev/null
 check "verification on"        '"emailVerification":true'  "$(admin PUT /settings '{"rosterRequired":true,"emailVerification":true,"matchLeaderPhone":false}')"
 check "public shows verify"    '"emailVerification":true'  "$(curl -s $B/api/public)"
@@ -176,7 +176,7 @@ check "organiser adds a team"   '"source":"admin"'           "$MADD"
 check "added team is approved"  '"status":"approved"'        "$MADD"
 check "amount worked out"       '"amount":250'               "$MADD"
 check "no screenshot needed"    '"hasScreenshot":false'      "$MADD"
-check "ERP IDs tidied"     '"roll":"RM1"'               "$MADD"
+check "Roll Numbers tidied"     '"roll":"RM1"'               "$MADD"
 check "screenshot says why"     'added by an organiser'      "$(admin GET /registrations/$MID/screenshot)"
 check "taken roll names the team" 'Already in team \"Manual Team\"' "$(admin POST /registrations "$(mteam 'Copycat' "$(mm 'Mona A' RM1 9876522222),$(mm 'New One' RN2),$(mm 'New Two' RN3),$(mm 'New Three' RN4),$(mm 'New Four' RN5)")")"
 check "taken team name"         'already uses this name'     "$(admin POST /registrations "$(mteam 'manual team' "$(mm 'N A' RN1 9876522223),$(mm 'N B' RN2),$(mm 'N C' RN3),$(mm 'N D' RN4),$(mm 'N E' RN5)")")"
@@ -212,7 +212,7 @@ check "export marks hand added" 'Organiser'                  "$(admin GET '/expo
 # ---- single students ----
 check "add one student"         '"name":"Solo Kid"'          "$(admin POST /students '{"roll":"rs1","name":"Solo Kid","branch":"CSE","email":"solo@dbit.example"}')"
 check "add: already listed"     'already on the list'        "$(admin POST /students '{"roll":"RS1","name":"Again"}')"
-check "add: bad roll"           'valid ERP ID'          "$(admin POST /students '{"roll":"!!","name":"Bad"}')"
+check "add: bad roll"           'valid roll number'          "$(admin POST /students '{"roll":"!!","name":"Bad"}')"
 check "add: bad email"          'valid email'                "$(admin POST /students '{"roll":"RS2","name":"Bad Mail","email":"nope"}')"
 check "edit a student"          '"name":"Solo Kid Renamed","branch":"ECE","phone":"9876533333"' "$(admin PUT /students/rs1 '{"name":"Solo Kid Renamed","branch":"ECE","phone":"9876533333","email":""}')"
 check "edit: unknown student"   'not on the list'            "$(admin PUT /students/NOPE1 '{"name":"Nobody"}')"

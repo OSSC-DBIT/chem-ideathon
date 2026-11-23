@@ -1,6 +1,6 @@
 /*
  * Input rules shared by the public form and the admin panel, so both accept
- * exactly the same ERP IDs, phone numbers and so on.
+ * exactly the same roll numbers, phone numbers and so on.
  */
 
 export const clean = (value, max) =>

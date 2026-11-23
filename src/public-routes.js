@@ -17,7 +17,7 @@ import { sendCode, checkCode, tokenValid, useToken, hasLiveChallenge, VerifyErro
 
 export const router = express.Router();
 
-const NOT_LISTED = 'This ERP ID is not in the 1st year student list. Check it, or contact the coordinator.';
+const NOT_LISTED = 'This roll number is not in the 1st year student list. Check it, or contact the coordinator.';
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -150,8 +150,8 @@ function validate(body, event, settings) {
       section: tidySection(raw?.section),
     };
     let listed = null;
-    if (!ROLL_RE.test(m.roll)) errors[`m${i}-roll`] = 'Enter a valid ERP ID.';
-    else if (seen.has(m.roll)) errors[`m${i}-roll`] = 'This ERP ID is repeated in your team.';
+    if (!ROLL_RE.test(m.roll)) errors[`m${i}-roll`] = 'Enter a valid roll number.';
+    else if (seen.has(m.roll)) errors[`m${i}-roll`] = 'This roll number is repeated in your team.';
     else if (settings.rosterRequired) {
       listed = getStudent(m.roll);
       if (!listed) errors[`m${i}-roll`] = NOT_LISTED;
@@ -178,7 +178,7 @@ function validate(body, event, settings) {
       }
     }
     if (i === 0 && listed && settings.matchLeaderPhone && listed.phone && PHONE_RE.test(m.phone) && listed.phone !== m.phone) {
-      errors['m0-phone'] = 'This phone number does not match the one the college has for this ERP ID.';
+      errors['m0-phone'] = 'This phone number does not match the one the college has for this roll number.';
     }
     if (i === 0 || m.phone) {
       if (!PHONE_RE.test(m.phone)) errors[`m${i}-phone`] = 'Enter a valid 10 digit mobile number.';
@@ -228,7 +228,7 @@ function validate(body, event, settings) {
 
 /**
  * The rules that can clash with existing registrations: event capacity, team name,
- * and ERP IDs that are already in a pending or approved registration.
+ * and roll numbers that are already in a pending or approved registration.
  * Returns null when everything is free, otherwise { message, fields }.
  */
 function findConflict(event, settings, teamName, rolls) {
@@ -431,16 +431,16 @@ router.post(
     const rolls = (Array.isArray(req.body?.rolls) ? req.body.rolls.slice(0, 50) : [])
       .map((r) => clean(r, 20).toUpperCase().replace(/\s/g, ''))
       .map((r) => (ROLL_RE.test(r) ? r : ''));
-    // The same ERP ID entered for two members of this team.
+    // The same roll number entered for two members of this team.
     const repeated = {};
     const seenRolls = new Set();
     rolls.forEach((roll, i) => {
       if (!roll) return;
-      if (seenRolls.has(roll)) repeated[`m${i}-roll`] = 'This ERP ID is repeated in your team. Each member needs their own ERP ID.';
+      if (seenRolls.has(roll)) repeated[`m${i}-roll`] = 'This roll number is repeated in your team. Each member needs their own roll number.';
       seenRolls.add(roll);
     });
 
-    // With the student list on: report unknown ERP IDs and send back the names to fill in.
+    // With the student list on: report unknown roll numbers and send back the names to fill in.
     let students = null;
     const unknown = {};
     if (settings.rosterRequired) {
@@ -458,9 +458,9 @@ router.post(
     const fields = { ...(conflict?.fields || {}), ...unknown, ...repeated };
     if (Object.keys(fields).length) {
       const error = Object.keys(repeated).length
-        ? 'The same ERP ID is entered more than once in your team.'
+        ? 'The same roll number is entered more than once in your team.'
         : Object.keys(unknown).length
-          ? 'One or more ERP IDs are not in the 1st year student list.'
+          ? 'One or more roll numbers are not in the 1st year student list.'
           : conflict.message;
       return res.status(409).json({ error, fields, students });
     }
@@ -474,7 +474,7 @@ router.post(
 /** Which email belongs to this leader: the one on the student list when there is one, else the one typed. */
 function leaderEmail(settings, body) {
   const roll = clean(body?.roll, 20).toUpperCase().replace(/\s/g, '');
-  if (!ROLL_RE.test(roll)) throw new VerifyError("Enter the team leader's ERP ID first.");
+  if (!ROLL_RE.test(roll)) throw new VerifyError("Enter the team leader's roll number first.");
   const listed = settings.rosterRequired ? getStudent(roll) : null;
   if (settings.rosterRequired && !listed) throw new VerifyError(NOT_LISTED);
   const email = listed?.email || clean(body?.email, 120).toLowerCase();
